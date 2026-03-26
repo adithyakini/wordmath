@@ -35,7 +35,6 @@ def play_sound(file):
         pass  # don't crash if file missing
 
 # ---------------- AI QUESTION ----------------
-@st.cache_data(ttl=300)
 import re
 import json
 
