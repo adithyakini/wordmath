@@ -7,7 +7,7 @@ import base64
 # ------------------ CONFIG ------------------
 st.set_page_config(page_title="Fun Math Word Game", page_icon="🎮")
 
-client = OpenAI(api_key="YOUR_API_KEY")
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ------------------ SESSION STATE ------------------
 if "level" not in st.session_state:
