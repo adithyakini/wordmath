@@ -1,28 +1,31 @@
 import streamlit as st
-import json
+import json, re, random, base64
 from openai import OpenAI
-import base64
 
 # ---------------- CONFIG ----------------
-st.set_page_config(page_title="Fun Math Game", page_icon="🎮")
+st.set_page_config(page_title="💨 Fartman Math Riddle", page_icon="💨")
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ---------------- SESSION STATE ----------------
-def init_state():
+# ---------------- STATE ----------------
+def init():
     defaults = {
         "level": 1,
         "score": 0,
+        "streak": 0,
+        "lives": 3,
+        "stage": "math",
         "question": None,
-        "stage": "math",  # math → word → done
+        "math_input": 0,
+        "word_input": ""
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
-init_state()
+init()
 
 # ---------------- SOUND ----------------
-def play_sound(file):
+def sound(file):
     try:
         with open(file, "rb") as f:
             b64 = base64.b64encode(f.read()).decode()
@@ -32,30 +35,50 @@ def play_sound(file):
         </audio>
         """, unsafe_allow_html=True)
     except:
-        pass  # don't crash if file missing
+        pass
 
-# ---------------- AI QUESTION ----------------
-import re
-import json
+# ---------------- FARTMAN VISUAL ----------------
+def fartman(lives):
+    img_map = {
+        3: "assets/fartman_happy.png",
+        2: "assets/fartman_ok.png",
+        1: "assets/fartman_worried.png",
+        0: "assets/fartman_dead.png"
+    }
+    st.image(img_map[lives], width=220)
 
+# ---------------- FUN TEXT ----------------
+def funny_correct():
+    msgs = [
+        "💨 BOOM! Brain fart worked!",
+        "🔥 You’re on FIREman!",
+        "🎯 Too easy for you!",
+        "🤣 Fartman is proud!"
+    ]
+    return random.choice(msgs)
+
+def funny_wrong():
+    msgs = [
+        "💀 Oops… that stinks!",
+        "😬 That was a weak fart...",
+        "🤢 Try again human!",
+        "💨 Misfire!"
+    ]
+    return random.choice(msgs)
+
+# ---------------- AI ----------------
 @st.cache_data(ttl=300)
-def generate_question(level):
+def gen_q(level):
     prompt = f"""
-    Generate a FUN math + word puzzle for Grade {level}.
+    Generate a FUN Grade {level} math + riddle.
 
-    STRICT RULES:
-    - Return ONLY valid JSON
-    - NO markdown
-    - NO explanation text
-    - NO backticks
-
-    Format:
+    Return ONLY JSON:
     {{
-        "math_question": "string",
+        "math_question": "...",
         "math_answer": number,
-        "word_puzzle": "string",
-        "word_answer": "string",
-        "hint": "string"
+        "riddle": "...",
+        "word_answer": "...",
+        "hint": "..."
     }}
     """
 
@@ -63,84 +86,109 @@ def generate_question(level):
         res = client.chat.completions.create(
             model="gpt-5.3",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.6
+            temperature=0.7
         )
 
-        raw = res.choices[0].message.content.strip()
-
-        # 🧹 CLEAN RESPONSE (handles most failures)
-        raw = re.sub(r"```json|```", "", raw).strip()
-
-        # Try parsing
+        raw = re.sub(r"```.*?```", "", res.choices[0].message.content.strip(), flags=re.S)
         data = json.loads(raw)
 
-        return data
+        data["math_answer"] = int(data["math_answer"])
+        data["word_answer"] = data["word_answer"].strip().upper()
 
-    except Exception as e:
-        # ⚠️ FALLBACK (app NEVER breaks)
+        return data
+    except:
         return {
-            "math_question": "What is 3 + 4?",
-            "math_answer": 7,
-            "word_puzzle": "_ A T",
-            "word_answer": "CAT",
-            "hint": "Add the numbers carefully!"
+            "math_question": "What is 6 + 2?",
+            "math_answer": 8,
+            "riddle": "I bark and guard your house. What am I?",
+            "word_answer": "DOG",
+            "hint": "A loyal animal"
         }
 
-# ---------------- LOAD QUESTION ----------------
-def load_question():
-    st.session_state.question = generate_question(st.session_state.level)
+# ---------------- LOAD ----------------
+def new_q():
+    st.session_state.question = gen_q(st.session_state.level + random.random())
     st.session_state.stage = "math"
+    st.session_state.lives = 3
+    st.session_state.math_input = 0
+    st.session_state.word_input = ""
 
 if st.session_state.question is None:
-    load_question()
+    new_q()
 
 q = st.session_state.question
 
-# ---------------- UI ----------------
-st.title("🎮 Silly Math Adventure")
-st.write(f"⭐ Level: {st.session_state.level} | Score: {st.session_state.score}")
+# ---------------- HEADER ----------------
+st.title("💨 Fartman Math Riddle Madness")
 
-# ---------------- STAGE: MATH ----------------
+col1, col2 = st.columns(2)
+col1.metric("⭐ Level", st.session_state.level)
+col2.metric("🔥 Streak", st.session_state.streak)
+
+st.progress(min(st.session_state.streak / 5, 1.0))
+
+fartman(st.session_state.lives)
+
+# ---------------- MATH ----------------
 if st.session_state.stage == "math":
-    st.subheader("🧮 Solve this:")
+    st.subheader("🧮 Solve or Fartman suffers!")
+
     st.write(q["math_question"])
+    ans = st.number_input("Answer", key="math_input")
 
-    answer = st.number_input("Your Answer", key="math_input")
+    if st.button("💥 Submit Math"):
+        if int(ans) == q["math_answer"]:
+            st.success(funny_correct())
+            sound("correct.mp3")
 
-    if st.button("Submit Math"):
-        if answer == q["math_answer"]:
-            st.success("🎉 Correct!")
-            play_sound("correct.mp3")
             st.session_state.score += 10
+            st.session_state.streak += 1
             st.session_state.stage = "word"
             st.rerun()
         else:
-            st.error("💥 Wrong!")
-            st.warning(q["hint"])
-            play_sound("wrong.mp3")
+            st.error(funny_wrong())
+            sound("wrong.mp3")
 
-# ---------------- STAGE: WORD ----------------
+            st.session_state.streak = 0
+            st.warning(q["hint"])
+
+# ---------------- RIDDLE ----------------
 elif st.session_state.stage == "word":
-    st.subheader("🔤 Word Puzzle")
-    st.write(q["word_puzzle"])
+    st.subheader("🧩 Solve the Riddle or Fartman Dies!")
+
+    st.write(q["riddle"])
 
     guess = st.text_input("Your Guess", key="word_input")
 
-    if st.button("Submit Word"):
-        if guess.lower() == q["word_answer"].lower():
-            st.success("🤣 Genius!")
-            play_sound("win.mp3")
+    if st.button("💨 Submit Guess"):
+        if guess.strip().upper() == q["word_answer"]:
+            st.success("🎉 YOU SAVED FARTMAN!")
+            sound("win.mp3")
+            st.balloons()
+
             st.session_state.level += 1
             st.session_state.stage = "done"
             st.rerun()
+
         else:
-            st.error("😜 Try again!")
-            play_sound("wrong.mp3")
+            st.session_state.lives -= 1
+            sound("wrong.mp3")
+            st.session_state.streak = 0
 
-# ---------------- STAGE: DONE ----------------
+            if st.session_state.lives > 0:
+                st.error(f"{funny_wrong()} | Lives left: {st.session_state.lives}")
+                st.warning(q["hint"])
+                st.rerun()
+            else:
+                st.error("💀 FARTMAN HAS FALLEN!")
+                st.write(f"Answer: **{q['word_answer']}**")
+                st.session_state.stage = "done"
+                st.rerun()
+
+# ---------------- DONE ----------------
 elif st.session_state.stage == "done":
-    st.success("🎯 Ready for next challenge?")
+    st.success("🎯 Another mission?")
 
-    if st.button("Next Question"):
-        load_question()
+    if st.button("🚀 Next Level"):
+        new_q()
         st.rerun()
