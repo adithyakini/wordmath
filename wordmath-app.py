@@ -1,112 +1,118 @@
 import streamlit as st
-import random
 import json
 from openai import OpenAI
 import base64
 
-# ------------------ CONFIG ------------------
-st.set_page_config(page_title="Fun Math Word Game", page_icon="🎮")
-
+# ---------------- CONFIG ----------------
+st.set_page_config(page_title="Fun Math Game", page_icon="🎮")
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ------------------ SESSION STATE ------------------
-if "level" not in st.session_state:
-    st.session_state.level = 1
+# ---------------- SESSION STATE ----------------
+def init_state():
+    defaults = {
+        "level": 1,
+        "score": 0,
+        "question": None,
+        "stage": "math",  # math → word → done
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
 
-if "score" not in st.session_state:
-    st.session_state.score = 0
+init_state()
 
-if "question" not in st.session_state:
-    st.session_state.question = None
-
-# ------------------ SOUND UTILS ------------------
+# ---------------- SOUND ----------------
 def play_sound(file):
-    with open(file, "rb") as f:
-        data = f.read()
-        b64 = base64.b64encode(data).decode()
-        md = f"""
+    try:
+        with open(file, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+        st.markdown(f"""
         <audio autoplay>
         <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
         </audio>
-        """
-        st.markdown(md, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+    except:
+        pass  # don't crash if file missing
 
-# ------------------ ANIMATIONS ------------------
-def show_balloons():
-    st.balloons()
-
-# ------------------ CHATGPT QUESTION ------------------
+# ---------------- AI QUESTION ----------------
 @st.cache_data(ttl=300)
 def generate_question(level):
     prompt = f"""
-    Create a FUN math + word puzzle for a Grade {level} kid.
-
-    Keep it short, playful, and silly.
+    Create a FUN math + word puzzle for Grade {level}.
 
     Return JSON:
     {{
         "math_question": "...",
         "math_answer": number,
-        "word_puzzle": "word with missing letters like _ A _",
+        "word_puzzle": "_ A _",
         "word_answer": "...",
         "hint": "..."
     }}
     """
 
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[{"role": "system", "content": "You are a funny game master for kids"},
-                  {"role": "user", "content": prompt}],
-        temperature=0.8
+    res = client.chat.completions.create(
+        model="gpt-5.3",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7
     )
 
-    return json.loads(response.choices[0].message.content)
+    return json.loads(res.choices[0].message.content)
 
-# ------------------ LOAD QUESTION ------------------
-if st.session_state.question is None:
+# ---------------- LOAD QUESTION ----------------
+def load_question():
     st.session_state.question = generate_question(st.session_state.level)
+    st.session_state.stage = "math"
+
+if st.session_state.question is None:
+    load_question()
 
 q = st.session_state.question
 
-# ------------------ UI ------------------
-st.title("🎮 Silly Math & Word Adventure")
-
+# ---------------- UI ----------------
+st.title("🎮 Silly Math Adventure")
 st.write(f"⭐ Level: {st.session_state.level} | Score: {st.session_state.score}")
 
-st.subheader("🧮 Solve this:")
-st.write(q["math_question"])
+# ---------------- STAGE: MATH ----------------
+if st.session_state.stage == "math":
+    st.subheader("🧮 Solve this:")
+    st.write(q["math_question"])
 
-user_answer = st.number_input("Your Answer", step=1)
+    answer = st.number_input("Your Answer", key="math_input")
 
-if st.button("Submit Answer"):
-    if user_answer == q["math_answer"]:
-        st.success("🎉 Correct! You unlocked the word!")
+    if st.button("Submit Math"):
+        if answer == q["math_answer"]:
+            st.success("🎉 Correct!")
+            play_sound("correct.mp3")
+            st.session_state.score += 10
+            st.session_state.stage = "word"
+            st.rerun()
+        else:
+            st.error("💥 Wrong!")
+            st.warning(q["hint"])
+            play_sound("wrong.mp3")
 
-        play_sound("correct.mp3")
-        show_balloons()
+# ---------------- STAGE: WORD ----------------
+elif st.session_state.stage == "word":
+    st.subheader("🔤 Word Puzzle")
+    st.write(q["word_puzzle"])
 
-        st.session_state.score += 10
+    guess = st.text_input("Your Guess", key="word_input")
 
-        st.subheader("🔤 Word Puzzle")
-        st.write(q["word_puzzle"])
+    if st.button("Submit Word"):
+        if guess.lower() == q["word_answer"].lower():
+            st.success("🤣 Genius!")
+            play_sound("win.mp3")
+            st.session_state.level += 1
+            st.session_state.stage = "done"
+            st.rerun()
+        else:
+            st.error("😜 Try again!")
+            play_sound("wrong.mp3")
 
-        word_guess = st.text_input("Guess the word")
+# ---------------- STAGE: DONE ----------------
+elif st.session_state.stage == "done":
+    st.success("🎯 Ready for next challenge?")
 
-        if st.button("Submit Word"):
-            if word_guess.lower() == q["word_answer"].lower():
-                st.success("🤣 You got it! Genius!")
-                play_sound("win.mp3")
-                st.session_state.level += 1
-            else:
-                st.error("😜 Oops! Try again!")
-                play_sound("wrong.mp3")
-
-    else:
-        st.error("💥 Wrong! Here's a hint:")
-        st.warning(q["hint"])
-        play_sound("wrong.mp3")
-
-# ------------------ NEXT QUESTION ------------------
-if st.button("Next Question"):
-    st.session_state.question = generate_question(st.session_state.level)
-    st.rerun()
+    if st.button("Next Question"):
+        load_question()
+        st.rerun()
