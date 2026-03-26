@@ -54,7 +54,7 @@ def generate_question(level):
     """
 
     response = client.chat.completions.create(
-        model="gpt-5.3",
+        model="gpt-4.1-mini",
         messages=[{"role": "system", "content": "You are a funny game master for kids"},
                   {"role": "user", "content": prompt}],
         temperature=0.8
