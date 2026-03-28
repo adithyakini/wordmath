@@ -21,15 +21,12 @@ WORD_RIDDLES = {
     "WATER": "You drink it 💧"
 }
 
-CHAPTER = "Addition"
-
 # -----------------------
-# BUILD PATH MAZE (MUST BE ABOVE INIT)
+# BUILD GAME
 # -----------------------
 def build_game():
     grid = [["" for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
 
-    # create snake path
     path = []
     r, c = 0, 0
     path.append((r, c))
@@ -43,7 +40,6 @@ def build_game():
         if r < GRID_SIZE:
             path.append((r, c))
 
-    # embed words along path
     full_letters = []
     for w in WORDS:
         full_letters += list(w)
@@ -51,7 +47,6 @@ def build_game():
     for (r, c), letter in zip(path, full_letters):
         grid[r][c] = letter
 
-    # fill remaining cells
     for i in range(GRID_SIZE):
         for j in range(GRID_SIZE):
             if grid[i][j] == "":
@@ -61,7 +56,6 @@ def build_game():
     st.session_state.path = path
     st.session_state.full_letters = full_letters
 
-
 # -----------------------
 # INIT
 # -----------------------
@@ -69,33 +63,40 @@ def init():
     if "grid" not in st.session_state:
         build_game()
 
-    defaults = {
-        "player_idx": 0,
-        "current_word_progress": "",
-        "word_index": 0,
-        "awaiting": False,
-        "question": None,
-        "answer": None,
-        "lives": 3,
-        "score": 0
-    }
+    if "player_idx" not in st.session_state:
+        st.session_state.player_idx = 0
 
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
+    if "current_word_progress" not in st.session_state:
+        # ✅ FIX: include first letter automatically
+        first_letter = st.session_state.grid[0][0]
+        st.session_state.current_word_progress = first_letter
 
+    if "word_index" not in st.session_state:
+        st.session_state.word_index = 0
+
+    if "awaiting" not in st.session_state:
+        st.session_state.awaiting = False
+
+    if "question" not in st.session_state:
+        st.session_state.question = None
+
+    if "answer" not in st.session_state:
+        st.session_state.answer = None
+
+    if "lives" not in st.session_state:
+        st.session_state.lives = 3
 
 init()
 
 # -----------------------
-# AI QUESTION
+# AI
 # -----------------------
 def generate_question():
     res = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{
             "role": "user",
-            "content": "Generate a simple math question and answer. Return JSON with 'question' and 'answer'."
+            "content": "Generate simple math question + answer JSON"
         }],
         response_format={"type": "json_object"}
     )
@@ -103,9 +104,8 @@ def generate_question():
     data = json.loads(res.choices[0].message.content)
     return data["question"], str(data["answer"])
 
-
 # -----------------------
-# DRAW GRID
+# DRAW
 # -----------------------
 def draw():
     for i in range(GRID_SIZE):
@@ -125,14 +125,12 @@ def draw():
             if cols[j].button(label, key=f"{i}-{j}", use_container_width=True):
                 handle_click(pos)
 
-
 # -----------------------
-# HANDLE MOVE
+# MOVE
 # -----------------------
 def handle_click(pos):
     idx = st.session_state.player_idx
 
-    # next valid step
     if idx + 1 >= len(st.session_state.path):
         return
 
@@ -155,13 +153,28 @@ def handle_click(pos):
 
     st.rerun()
 
+# -----------------------
+# RETRACE FUNCTIONS
+# -----------------------
+def undo_move():
+    if st.session_state.player_idx > 0:
+        st.session_state.player_idx -= 1
+        st.session_state.current_word_progress = st.session_state.current_word_progress[:-1]
+        st.rerun()
+
+def reset_word():
+    # reset to start of current word
+    word_start_idx = sum(len(w) for w in WORDS[:st.session_state.word_index])
+
+    st.session_state.player_idx = word_start_idx
+    st.session_state.current_word_progress = ""
+    st.rerun()
 
 # -----------------------
 # UI
 # -----------------------
 st.title("🧙 Exorcist Word Maze")
 
-# GAME OVER
 if st.session_state.lives <= 0:
     st.error("💀 Game Over")
     if st.button("Restart"):
@@ -169,19 +182,32 @@ if st.session_state.lives <= 0:
         st.rerun()
     st.stop()
 
-# ALL WORDS DONE
 if st.session_state.word_index >= len(WORDS):
     st.success("👻 Exorcism Complete! You Win!")
     st.stop()
 
-# CURRENT WORD + RIDDLE
 current_word = WORDS[st.session_state.word_index]
+
 st.markdown("## 🧩 Riddle")
 st.info(WORD_RIDDLES[current_word])
+
 st.caption(f"Progress: {st.session_state.current_word_progress}")
 
-# DRAW GRID
 draw()
+
+# -----------------------
+# CONTROLS
+# -----------------------
+st.markdown("### 🎮 Controls")
+c1, c2 = st.columns(2)
+
+with c1:
+    if st.button("↩️ Undo"):
+        undo_move()
+
+with c2:
+    if st.button("🧹 Reset Word"):
+        reset_word()
 
 # -----------------------
 # QUESTION GATE
@@ -205,8 +231,6 @@ if st.session_state.awaiting:
             st.session_state.word_index += 1
             st.session_state.awaiting = False
             st.session_state.question = None
-
-            st.session_state.score += 10
 
             st.rerun()
         else:
