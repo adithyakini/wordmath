@@ -5,7 +5,7 @@ import openai
 # -----------------------
 # CONFIG
 # -----------------------
-openai.api_key = "YOUR_API_KEY"
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 CHAPTERS = [
     "Place Value",
