@@ -2,26 +2,30 @@ import streamlit as st
 from openai import OpenAI
 import json
 import random
+import string
 
 # -----------------------
 # CONFIG
 # -----------------------
-st.set_page_config(page_title="Math Maze", layout="centered")
+st.set_page_config(page_title="Math Word Maze", layout="centered")
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-GRID_SIZE = 3
-GOAL = [1, 1]
+GRID_SIZE = 5
+GOAL = [2, 2]
+
+WORDS = [
+    "APPLE", "GRAPE", "MANGO", "PEACH",
+    "HOUSE", "PLANT", "TRAIN", "SNAKE",
+    "WATER", "LIGHT", "EARTH"
+]
 
 CHAPTERS = [
     "Place Value",
-    "Adding in your head",
-    "Exploring addition",
-    "Subtracting in your head",
-    "Exploring subtraction",
-    "Multiplying",
-    "Dividing",
-    "Fractions of objects"
+    "Addition",
+    "Subtraction",
+    "Multiplication",
+    "Division"
 ]
 
 # -----------------------
@@ -31,15 +35,18 @@ def init():
     defaults = {
         "chapter": None,
         "player": [0, 0],
-        "enemy": [2, 2],
+        "enemy": [4, 4],
         "visited": {(0, 0)},
-        "lives": 3,
-        "score": 0,
-        "difficulty": 1,
+        "path": [],
+        "current_word": "",
+        "letter_grid": None,
+        "valid_words": [],
+        "awaiting": False,
         "question": None,
         "answer": None,
-        "awaiting": False,
-        "target": None
+        "lives": 3,
+        "score": 0,
+        "difficulty": 1
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -48,19 +55,46 @@ def init():
 init()
 
 # -----------------------
-# SOUND (simple)
+# GENERATE LETTER MAZE
 # -----------------------
-def play_sound(type):
-    sounds = {
-        "correct": "https://www.soundjay.com/buttons/sounds/button-3.mp3",
-        "wrong": "https://www.soundjay.com/buttons/sounds/button-10.mp3",
-        "win": "https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3"
-    }
-    st.markdown(f"""
-        <audio autoplay>
-        <source src="{sounds[type]}" type="audio/mp3">
-        </audio>
-    """, unsafe_allow_html=True)
+def generate_letter_maze():
+    grid = [["" for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+    placed_words = []
+
+    for word in random.sample(WORDS, 3):
+        for _ in range(100):
+            r = random.randint(0, GRID_SIZE - 1)
+            c = random.randint(0, GRID_SIZE - 1)
+            direction = random.choice([(0,1),(1,0),(0,-1),(-1,0)])
+
+            positions = []
+            rr, cc = r, c
+
+            for ch in word:
+                if 0 <= rr < GRID_SIZE and 0 <= cc < GRID_SIZE:
+                    positions.append((rr, cc))
+                    rr += direction[0]
+                    cc += direction[1]
+                else:
+                    break
+
+            if len(positions) == len(word):
+                for (rr, cc), ch in zip(positions, word):
+                    grid[rr][cc] = ch
+                placed_words.append(word)
+                break
+
+    for i in range(GRID_SIZE):
+        for j in range(GRID_SIZE):
+            if grid[i][j] == "":
+                grid[i][j] = random.choice(string.ascii_uppercase)
+
+    return grid, placed_words
+
+if st.session_state.letter_grid is None:
+    grid, words = generate_letter_maze()
+    st.session_state.letter_grid = grid
+    st.session_state.valid_words = words
 
 # -----------------------
 # AI
@@ -70,7 +104,6 @@ def generate_question(chapter):
 
     prompt = f"""
     Generate ONE math question.
-
     Topic: {chapter}
     Difficulty: {level}
 
@@ -96,7 +129,7 @@ def generate_hint(q, a):
         model="gpt-4o-mini",
         messages=[{
             "role": "user",
-            "content": f"Question: {q}\nAnswer: {a}\nGive short hint."
+            "content": f"Question: {q}\nAnswer: {a}\nGive hint."
         }]
     )
     return res.choices[0].message.content
@@ -109,7 +142,7 @@ def adjust_difficulty(correct):
         st.session_state.difficulty = max(1, st.session_state.difficulty - 0.3)
 
 # -----------------------
-# ENEMY AI (chase player)
+# ENEMY MOVE
 # -----------------------
 def move_enemy():
     er, ec = st.session_state.enemy
@@ -127,66 +160,60 @@ def move_enemy():
     st.session_state.enemy = [er, ec]
 
 # -----------------------
-# DRAW MAZE (CLICKABLE)
+# DRAW GRID (CLICKABLE)
 # -----------------------
 def draw_maze():
-    st.markdown("### 🗺️ Maze")
+    st.markdown("### 🔤 Word Maze")
 
     for i in range(GRID_SIZE):
         cols = st.columns(GRID_SIZE)
 
         for j in range(GRID_SIZE):
-            pos = [i, j]
-            is_player = pos == st.session_state.player
-            is_enemy = pos == st.session_state.enemy
-            is_goal = pos == GOAL
-            visited = tuple(pos) in st.session_state.visited
+            letter = st.session_state.letter_grid[i][j]
+            pos = (i, j)
 
-            # Decide appearance
-            if not visited:
-                label = "⬛"
+            is_player = [i, j] == st.session_state.player
+            is_enemy = [i, j] == st.session_state.enemy
+            in_path = pos in st.session_state.path
+
+            if is_player:
+                label = f"🧙 {letter}"
+            elif is_enemy:
+                label = f"👻 {letter}"
+            elif in_path:
+                label = f"🟨 {letter}"
             else:
-                if is_player:
-                    label = "🧙"
-                elif is_enemy:
-                    label = "👻"
-                elif is_goal:
-                    label = "🔥"
-                else:
-                    label = "🟦"
+                label = letter
 
-            # IMPORTANT: button is the tile itself
             if cols[j].button(label, key=f"{i}-{j}", use_container_width=True):
-                handle_click(pos, visited)
+                handle_click(pos)
 
 # -----------------------
-# CLICK HANDLER
+# HANDLE CLICK
 # -----------------------
-def handle_click(pos, visited):
+def handle_click(pos):
     pr, pc = st.session_state.player
     r, c = pos
 
-    # Only adjacent moves allowed
     if abs(pr - r) + abs(pc - c) != 1:
         return
 
-    st.session_state.target = pos
+    if pos in st.session_state.path:
+        return
 
-    q, a = generate_question(st.session_state.chapter)
-    st.session_state.question = q
-    st.session_state.answer = a
-    st.session_state.awaiting = True
+    st.session_state.player = [r, c]
+    st.session_state.path.append(pos)
+
+    letter = st.session_state.letter_grid[r][c]
+    st.session_state.current_word += letter
 
     st.rerun()
 
 # -----------------------
 # UI
 # -----------------------
-st.title("🧩 Math Maze: Exorcism Quest")
+st.title("🧩 Math Word Maze")
 
-# -----------------------
-# CHAPTER
-# -----------------------
 if not st.session_state.chapter:
     ch = st.selectbox("Choose Chapter", CHAPTERS)
 
@@ -196,9 +223,7 @@ if not st.session_state.chapter:
 
     st.stop()
 
-# -----------------------
 # HUD
-# -----------------------
 c1, c2, c3 = st.columns(3)
 c1.metric("❤️ Lives", st.session_state.lives)
 c2.metric("⭐ Score", st.session_state.score)
@@ -206,12 +231,9 @@ c3.metric("🧠 Difficulty", round(st.session_state.difficulty, 1))
 
 st.divider()
 
-# -----------------------
 # GAME OVER
-# -----------------------
 if st.session_state.lives <= 0:
     st.error("💀 Game Over")
-    play_sound("wrong")
 
     if st.button("Restart"):
         st.session_state.clear()
@@ -219,37 +241,30 @@ if st.session_state.lives <= 0:
 
     st.stop()
 
-# -----------------------
-# DRAW MAZE
-# -----------------------
+# DRAW
 draw_maze()
 
-# -----------------------
-# WIN
-# -----------------------
-if st.session_state.player == GOAL:
-    st.success("🔥 FINAL ROOM")
+# WORD DISPLAY
+st.markdown(f"### 🧩 Word: `{st.session_state.current_word}`")
 
-    q, a = generate_question(st.session_state.chapter)
-    st.write(q)
+# WORD MATCH
+if st.session_state.current_word in st.session_state.valid_words:
+    st.success(f"🎉 Found word: {st.session_state.current_word}")
 
-    user = st.text_input("Final Answer")
+    if not st.session_state.awaiting:
+        q, a = generate_question(st.session_state.chapter)
+        st.session_state.question = q
+        st.session_state.answer = a
+        st.session_state.awaiting = True
 
-    if st.button("Perform Exorcism"):
-        if user.strip() == a.strip():
-            play_sound("win")
-            st.success("✨ YOU WIN!")
-        else:
-            play_sound("wrong")
-            st.error("❌ Failed!")
+elif len(st.session_state.current_word) > 7:
+    st.warning("❌ Invalid path. Reset.")
+    st.session_state.path = []
+    st.session_state.current_word = ""
 
-    st.stop()
-
-# -----------------------
 # QUESTION GATE
-# -----------------------
 if st.session_state.awaiting:
-    st.markdown("## 🧠 Solve to Move")
+    st.markdown("## 🚪 Solve to Unlock")
 
     st.write(st.session_state.question)
     user = st.text_input("Your Answer")
@@ -259,25 +274,21 @@ if st.session_state.awaiting:
         adjust_difficulty(correct)
 
         if correct:
-            play_sound("correct")
-            st.success("🚪 Move successful!")
+            st.success("🚪 Path unlocked!")
 
-            st.session_state.player = st.session_state.target
-            st.session_state.visited.add(tuple(st.session_state.player))
             st.session_state.score += int(10 * st.session_state.difficulty)
+            st.session_state.path = []
+            st.session_state.current_word = ""
+            st.session_state.awaiting = False
 
             move_enemy()
 
-            # Enemy catches player
             if st.session_state.enemy == st.session_state.player:
-                st.error("👻 The ghost caught you!")
+                st.error("👻 Ghost caught you!")
                 st.session_state.lives -= 1
 
-            st.session_state.awaiting = False
             st.rerun()
-
         else:
-            play_sound("wrong")
             st.error("👻 Wrong!")
             st.session_state.lives -= 1
 
