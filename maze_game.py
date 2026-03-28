@@ -2,7 +2,7 @@ import streamlit as st
 import random
 import string
 
-st.set_page_config(page_title="Exorcist Path", layout="centered")
+st.set_page_config(page_title="Exorcist Snake Path", layout="centered")
 
 GRID_SIZE = 10
 WORDS = ["APPLE", "TRAIN", "WATER", "LIGHT", "PLANT"]
@@ -16,26 +16,29 @@ RIDDLES = {
 }
 
 # -----------------------
-# BUILD GRID WITH TRUE PATH
+# BUILD SNAKE PATH GRID
 # -----------------------
 def build_game():
     grid = [[random.choice(string.ascii_uppercase) for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
 
-    path = [(0, 0)]
-    r, c = 0, 0
+    path = []
 
-    # build guaranteed adjacent path
+    # snake pattern
+    for r in range(GRID_SIZE):
+        if r % 2 == 0:
+            for c in range(GRID_SIZE):
+                path.append((r, c))
+        else:
+            for c in reversed(range(GRID_SIZE)):
+                path.append((r, c))
+
+    # embed words
+    idx = 0
     for word in WORDS:
         for ch in word:
+            r, c = path[idx]
             grid[r][c] = ch
-
-            # move right or down (safe path)
-            if c < GRID_SIZE - 1:
-                c += 1
-            else:
-                r += 1
-
-            path.append((r, c))
+            idx += 1
 
     return grid, path
 
@@ -47,7 +50,7 @@ if "init" not in st.session_state:
 
     st.session_state.grid = grid
     st.session_state.path = path
-    st.session_state.player_step = 0  # index in path
+    st.session_state.step = 0
     st.session_state.word_index = 0
     st.session_state.current_word = ""
     st.session_state.awaiting = False
@@ -65,23 +68,22 @@ def gen_q():
     return f"{a} + {b}", str(a + b)
 
 # -----------------------
-# MOVE (STRICT PATH)
+# MOVE (STRICT)
 # -----------------------
 def move(i, j):
-    step = st.session_state.player_step
+    step = st.session_state.step
     path = st.session_state.path
 
-    # next correct tile ONLY
     if step + 1 >= len(path):
         return
 
-    correct_next = path[step + 1]
+    correct = path[step + 1]
 
-    if (i, j) != correct_next:
+    if (i, j) != correct:
         return  # ignore wrong clicks
 
-    # move
-    st.session_state.player_step += 1
+    # move forward
+    st.session_state.step += 1
 
     letter = st.session_state.grid[i][j]
     st.session_state.current_word += letter
@@ -96,7 +98,7 @@ def move(i, j):
 # -----------------------
 # UI
 # -----------------------
-st.title("🧙 Exorcist Path (Gameplay Mode)")
+st.title("🧙 Exorcist Maze — Snake Path")
 
 if st.session_state.lives <= 0:
     st.error("💀 Game Over")
@@ -106,7 +108,7 @@ if st.session_state.lives <= 0:
     st.stop()
 
 if st.session_state.word_index >= len(WORDS):
-    st.success("👻 You reached the ghost!")
+    st.success("👻 You reached the Ghost! Exorcism Complete!")
     st.stop()
 
 target = WORDS[st.session_state.word_index]
@@ -118,11 +120,11 @@ st.caption(f"Lives: {st.session_state.lives}")
 # -----------------------
 # DRAW GRID
 # -----------------------
-player_pos = st.session_state.path[st.session_state.player_step]
-next_pos = None
+player_pos = st.session_state.path[st.session_state.step]
 
-if st.session_state.player_step + 1 < len(st.session_state.path):
-    next_pos = st.session_state.path[st.session_state.player_step + 1]
+next_pos = None
+if st.session_state.step + 1 < len(st.session_state.path):
+    next_pos = st.session_state.path[st.session_state.step + 1]
 
 for i in range(GRID_SIZE):
     cols = st.columns(GRID_SIZE)
@@ -132,7 +134,9 @@ for i in range(GRID_SIZE):
         if pos == player_pos:
             label = "🧙"
         elif pos == next_pos:
-            label = f"✨ {st.session_state.grid[i][j]}"
+            label = f"🟩 {st.session_state.grid[i][j]}"
+        elif pos in st.session_state.path[:st.session_state.step]:
+            label = f"🟨 {st.session_state.grid[i][j]}"
         elif pos == st.session_state.path[-1]:
             label = "👻"
         else:
@@ -142,7 +146,7 @@ for i in range(GRID_SIZE):
             move(i, j)
 
 # -----------------------
-# DOOR
+# DOOR SYSTEM
 # -----------------------
 if st.session_state.awaiting:
     st.subheader("🚪 Solve to Continue")
@@ -157,11 +161,11 @@ if st.session_state.awaiting:
 
     if st.button("Submit"):
         if ans.strip() == st.session_state.a:
-            st.success("Door opened!")
+            st.success("Door opened! ✅")
             st.session_state.word_index += 1
             st.session_state.current_word = ""
         else:
-            st.error("Wrong!")
+            st.error("Wrong! Lost a life ❌")
             st.session_state.lives -= 1
 
         st.session_state.awaiting = False
