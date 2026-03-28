@@ -11,13 +11,14 @@ st.set_page_config(page_title="Math Word Maze", layout="centered")
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-GRID_SIZE = 5
-GOAL = [2, 2]
+GRID_SIZE = 7   # 🔥 BIGGER MAZE
+GOAL = [3, 3]
 
 WORDS = [
     "APPLE", "GRAPE", "MANGO", "PEACH",
     "HOUSE", "PLANT", "TRAIN", "SNAKE",
-    "WATER", "LIGHT", "EARTH"
+    "WATER", "LIGHT", "EARTH", "BRIDGE",
+    "FLOWER", "GARDEN", "MARKET"
 ]
 
 CHAPTERS = [
@@ -35,7 +36,7 @@ def init():
     defaults = {
         "chapter": None,
         "player": [0, 0],
-        "enemy": [4, 4],
+        "enemy": [6, 6],
         "visited": {(0, 0)},
         "path": [],
         "current_word": "",
@@ -55,14 +56,14 @@ def init():
 init()
 
 # -----------------------
-# GENERATE LETTER MAZE
+# GENERATE MAZE
 # -----------------------
 def generate_letter_maze():
     grid = [["" for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
     placed_words = []
 
-    for word in random.sample(WORDS, 3):
-        for _ in range(100):
+    for word in random.sample(WORDS, 4):  # more words
+        for _ in range(200):
             r = random.randint(0, GRID_SIZE - 1)
             c = random.randint(0, GRID_SIZE - 1)
             direction = random.choice([(0,1),(1,0),(0,-1),(-1,0)])
@@ -123,7 +124,6 @@ def generate_question(chapter):
     data = json.loads(res.choices[0].message.content)
     return data["question"], str(data["answer"])
 
-
 def generate_hint(q, a):
     res = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -134,7 +134,6 @@ def generate_hint(q, a):
     )
     return res.choices[0].message.content
 
-
 def adjust_difficulty(correct):
     if correct:
         st.session_state.difficulty += 0.2
@@ -142,25 +141,21 @@ def adjust_difficulty(correct):
         st.session_state.difficulty = max(1, st.session_state.difficulty - 0.3)
 
 # -----------------------
-# ENEMY MOVE
+# ENEMY
 # -----------------------
 def move_enemy():
     er, ec = st.session_state.enemy
     pr, pc = st.session_state.player
 
-    if er < pr:
-        er += 1
-    elif er > pr:
-        er -= 1
-    elif ec < pc:
-        ec += 1
-    elif ec > pc:
-        ec -= 1
+    if er < pr: er += 1
+    elif er > pr: er -= 1
+    elif ec < pc: ec += 1
+    elif ec > pc: ec -= 1
 
     st.session_state.enemy = [er, ec]
 
 # -----------------------
-# DRAW GRID (CLICKABLE)
+# DRAW GRID
 # -----------------------
 def draw_maze():
     st.markdown("### 🔤 Word Maze")
@@ -216,11 +211,9 @@ st.title("🧩 Math Word Maze")
 
 if not st.session_state.chapter:
     ch = st.selectbox("Choose Chapter", CHAPTERS)
-
     if st.button("Start Game"):
         st.session_state.chapter = ch
         st.rerun()
-
     st.stop()
 
 # HUD
@@ -234,11 +227,9 @@ st.divider()
 # GAME OVER
 if st.session_state.lives <= 0:
     st.error("💀 Game Over")
-
     if st.button("Restart"):
         st.session_state.clear()
         st.rerun()
-
     st.stop()
 
 # DRAW
@@ -246,10 +237,41 @@ draw_maze()
 
 # WORD DISPLAY
 st.markdown(f"### 🧩 Word: `{st.session_state.current_word}`")
+st.caption(f"Path length: {len(st.session_state.path)}")
 
-# WORD MATCH
+# CONTROLS
+c1, c2, c3 = st.columns(3)
+
+with c1:
+    if st.button("↩️ Undo"):
+        if st.session_state.path:
+            st.session_state.path.pop()
+            st.session_state.current_word = st.session_state.current_word[:-1]
+            if st.session_state.path:
+                st.session_state.player = list(st.session_state.path[-1])
+            else:
+                st.session_state.player = [0, 0]
+            st.rerun()
+
+with c2:
+    if st.button("🧹 Clear"):
+        st.session_state.path = []
+        st.session_state.current_word = ""
+        st.rerun()
+
+with c3:
+    if st.button("🔄 New Maze"):
+        grid, words = generate_letter_maze()
+        st.session_state.letter_grid = grid
+        st.session_state.valid_words = words
+        st.session_state.player = [0, 0]
+        st.session_state.path = []
+        st.session_state.current_word = ""
+        st.rerun()
+
+# WORD CHECK
 if st.session_state.current_word in st.session_state.valid_words:
-    st.success(f"🎉 Found word: {st.session_state.current_word}")
+    st.success(f"🎉 Found: {st.session_state.current_word}")
 
     if not st.session_state.awaiting:
         q, a = generate_question(st.session_state.chapter)
@@ -257,8 +279,8 @@ if st.session_state.current_word in st.session_state.valid_words:
         st.session_state.answer = a
         st.session_state.awaiting = True
 
-elif len(st.session_state.current_word) > 7:
-    st.warning("❌ Invalid path. Reset.")
+elif len(st.session_state.current_word) > 8:
+    st.warning("❌ Invalid path")
     st.session_state.path = []
     st.session_state.current_word = ""
 
@@ -267,16 +289,16 @@ if st.session_state.awaiting:
     st.markdown("## 🚪 Solve to Unlock")
 
     st.write(st.session_state.question)
-    user = st.text_input("Your Answer")
+    user = st.text_input("Answer")
 
     if st.button("Submit"):
         correct = user.strip() == st.session_state.answer.strip()
         adjust_difficulty(correct)
 
         if correct:
-            st.success("🚪 Path unlocked!")
-
+            st.success("🚪 Unlocked!")
             st.session_state.score += int(10 * st.session_state.difficulty)
+
             st.session_state.path = []
             st.session_state.current_word = ""
             st.session_state.awaiting = False
