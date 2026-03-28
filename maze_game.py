@@ -7,7 +7,7 @@ import json
 # -----------------------
 # CONFIG
 # -----------------------
-st.set_page_config(page_title="Exorcist Maze PRO", layout="centered")
+st.set_page_config(page_title="Exorcist Maze NF", layout="centered")
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 GRID_SIZE = 7
@@ -42,48 +42,29 @@ div.stButton > button:hover {
 # SOUND
 # -----------------------
 def play(sound):
-    urls = {
+    sounds = {
         "move": "https://www.soundjay.com/buttons/sounds/button-09.mp3",
         "correct": "https://www.soundjay.com/buttons/sounds/button-3.mp3",
         "wrong": "https://www.soundjay.com/buttons/sounds/button-10.mp3",
         "ghost": "https://www.soundjay.com/human/sounds/scream-01.mp3",
         "win": "https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3"
     }
-    st.markdown(f"<audio autoplay><source src='{urls[sound]}'></audio>", unsafe_allow_html=True)
+    st.markdown(f"<audio autoplay><source src='{sounds[sound]}'></audio>", unsafe_allow_html=True)
 
 # -----------------------
-# MAZE (DFS)
+# MAZE
 # -----------------------
-def generate_maze():
-    grid = [[None]*GRID_SIZE for _ in range(GRID_SIZE)]
-
-    def dfs(r, c):
-        dirs = [(0,1),(1,0),(0,-1),(-1,0)]
-        random.shuffle(dirs)
-        for dr, dc in dirs:
-            nr, nc = r+dr, c+dc
-            if 0 <= nr < GRID_SIZE and 0 <= nc < GRID_SIZE and grid[nr][nc] is None:
-                grid[nr][nc] = ""
-                dfs(nr, nc)
-
-    grid[0][0] = ""
-    dfs(0, 0)
-
-    # fill letters
-    for i in range(GRID_SIZE):
-        for j in range(GRID_SIZE):
-            grid[i][j] = random.choice(string.ascii_uppercase)
-
-    return grid
+def build_grid():
+    return [[random.choice(string.ascii_uppercase) for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
 
 def embed_words(grid):
     path = [(0,0)]
     r,c = 0,0
 
     for _ in range(40):
-        dr, dc = random.choice([(0,1),(1,0),(0,-1),(-1,0)])
-        nr, nc = r+dr, c+dc
-        if 0 <= nr < GRID_SIZE and 0 <= nc < GRID_SIZE:
+        dr,dc = random.choice([(0,1),(1,0),(0,-1),(-1,0)])
+        nr,nc = r+dr,c+dc
+        if 0<=nr<GRID_SIZE and 0<=nc<GRID_SIZE:
             r,c = nr,nc
             if (r,c) not in path:
                 path.append((r,c))
@@ -92,7 +73,7 @@ def embed_words(grid):
     for w in WORDS:
         for ch in w:
             if idx < len(path):
-                pr, pc = path[idx]
+                pr,pc = path[idx]
                 grid[pr][pc] = ch
                 idx += 1
 
@@ -103,8 +84,7 @@ def embed_words(grid):
 # -----------------------
 def init():
     if "grid" not in st.session_state:
-        grid = generate_maze()
-        st.session_state.grid = embed_words(grid)
+        st.session_state.grid = embed_words(build_grid())
 
     defaults = {
         "player": (0,0),
@@ -115,7 +95,8 @@ def init():
         "awaiting": False,
         "q": None,
         "a": None,
-        "lives": 3
+        "lives": 3,
+        "combo": 0
     }
 
     for k,v in defaults.items():
@@ -125,60 +106,31 @@ def init():
 init()
 
 # -----------------------
-# LOGIC
+# HELPERS
 # -----------------------
 def next_letter():
     target = WORDS[st.session_state.index]
     return target[len(st.session_state.word)] if len(st.session_state.word) < len(target) else None
 
-def valid_moves():
-    pr, pc = st.session_state.player
-    nxt = next_letter()
-    moves = []
-
-    for dr,dc in [(0,1),(1,0),(0,-1),(-1,0)]:
-        r,c = pr+dr, pc+dc
-        if 0<=r<GRID_SIZE and 0<=c<GRID_SIZE:
-            if st.session_state.grid[r][c] == nxt:
-                moves.append((r,c))
-    return moves
-
 def move_ghost():
     gr,gc = st.session_state.ghost
     pr,pc = st.session_state.player
 
-    options = []
+    moves = []
     for dr,dc in [(0,1),(1,0),(0,-1),(-1,0)]:
         r,c = gr+dr,gc+dc
         if 0<=r<GRID_SIZE and 0<=c<GRID_SIZE:
             d = abs(r-pr)+abs(c-pc)
-            options.append(((r,c), d))
+            moves.append(((r,c), d))
 
-    options.sort(key=lambda x: x[1])
-    st.session_state.ghost = options[0][0] if random.random()<0.7 else random.choice(options)[0]
-
-def check_progress():
-    cur = st.session_state.word
-    target = WORDS[st.session_state.index]
-
-    if cur == target:
-        play("correct")
-        st.session_state.awaiting = True
-        st.balloons()
-        return True
-
-    if not target.startswith(cur):
-        play("wrong")
-        st.session_state.lives -= 1
-        reset()
-        return False
-
-    return True
+    moves.sort(key=lambda x: x[1])
+    st.session_state.ghost = moves[0][0] if random.random()<0.7 else random.choice(moves)[0]
 
 def reset():
     st.session_state.word = ""
     st.session_state.path = [(0,0)]
     st.session_state.player = (0,0)
+    st.session_state.combo = 0
 
 # -----------------------
 # AI QUESTION
@@ -187,21 +139,67 @@ def gen_q():
     try:
         r = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{
-                "role":"user",
-                "content":"Easy math question JSON with 'question' and 'answer'"
-            }],
+            messages=[{"role":"user","content":"Easy math JSON {question,answer}"}],
             response_format={"type":"json_object"}
         )
-        data = json.loads(r.choices[0].message.content)
-        return data["question"], str(data["answer"])
+        d = json.loads(r.choices[0].message.content)
+        return d["question"], str(d["answer"])
     except:
         return "2+2?", "4"
 
 # -----------------------
+# MOVE (CORE FIX)
+# -----------------------
+def handle_move(pos):
+    pr, pc = st.session_state.player
+    r, c = pos
+
+    if abs(pr-r)+abs(pc-c) != 1:
+        return
+
+    play("move")
+
+    st.session_state.player = pos
+    st.session_state.path.append(pos)
+
+    letter = st.session_state.grid[r][c]
+    target = WORDS[st.session_state.index]
+    current = st.session_state.word
+    expected = next_letter()
+
+    # ✅ correct
+    if letter == expected:
+        st.session_state.word += letter
+        st.session_state.combo += 1
+
+        if st.session_state.word == target:
+            play("correct")
+            st.session_state.awaiting = True
+            st.balloons()
+
+    # ❌ wrong
+    else:
+        play("wrong")
+        st.warning(f"Expected '{expected}', got '{letter}'")
+        st.session_state.lives -= 1
+        reset()
+
+    # ghost always moves
+    move_ghost()
+
+    # collision
+    if st.session_state.player == st.session_state.ghost:
+        play("ghost")
+        st.error("👻 CAUGHT!")
+        st.session_state.lives -= 1
+        reset()
+
+    st.rerun()
+
+# -----------------------
 # UI
 # -----------------------
-st.title("🧙 Exorcist Maze PRO")
+st.title("🧙 Exorcist Maze — No Frustration")
 
 if st.session_state.lives <= 0:
     st.error("💀 Game Over")
@@ -220,6 +218,7 @@ target = WORDS[st.session_state.index]
 st.info(WORD_RIDDLES[target])
 st.caption(f"Word: {st.session_state.word}")
 st.caption(f"Next: {next_letter()}")
+st.caption(f"🔥 Combo: {st.session_state.combo}")
 
 # ghost warning
 dist = abs(st.session_state.player[0]-st.session_state.ghost[0]) + abs(st.session_state.player[1]-st.session_state.ghost[1])
@@ -229,49 +228,38 @@ elif dist <= 4:
     st.warning("👻 Nearby...")
 
 # -----------------------
-# DRAW (FOG OF WAR)
+# FOG
 # -----------------------
 def visible(r,c):
     pr,pc = st.session_state.player
     return abs(pr-r)+abs(pc-c) <= 2
 
+# -----------------------
+# DRAW
+# -----------------------
 for i in range(GRID_SIZE):
     cols = st.columns(GRID_SIZE)
     for j in range(GRID_SIZE):
         pos = (i,j)
+        letter = st.session_state.grid[i][j]
 
         if not visible(i,j):
-            label = "⬛"
-        elif pos == st.session_state.player:
+            cols[j].markdown("⬛")
+            continue
+
+        if pos == st.session_state.player:
             label = "🧙"
         elif pos == st.session_state.ghost:
             label = "👻"
-        elif pos in valid_moves():
-            label = f"✨ {st.session_state.grid[i][j]}"
+        elif letter == next_letter():
+            label = f"✨ {letter}"
         elif pos in st.session_state.path:
-            label = f"🟨 {st.session_state.grid[i][j]}"
+            label = f"🟨 {letter}"
         else:
-            label = st.session_state.grid[i][j]
+            label = letter
 
         if cols[j].button(label, key=f"{i}-{j}", use_container_width=True):
-            if pos not in valid_moves():
-                continue
-
-            play("move")
-            st.session_state.player = pos
-            st.session_state.path.append(pos)
-            st.session_state.word += st.session_state.grid[i][j]
-
-            if check_progress():
-                move_ghost()
-
-            if st.session_state.player == st.session_state.ghost:
-                play("ghost")
-                st.error("👻 CAUGHT!")
-                st.session_state.lives -= 1
-                reset()
-
-            st.rerun()
+            handle_move(pos)
 
 # -----------------------
 # CONTROLS
