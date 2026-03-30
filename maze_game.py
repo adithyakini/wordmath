@@ -97,21 +97,32 @@ def get_words(level):
     else:
         rule = "6 or more letters"
 
+    # 🔥 random theme to diversify output
+    themes = ["nature", "space", "food", "objects", "animals", "mystery", "fantasy"]
+    theme = random.choice(themes)
+
     prompt = f"""
-    Generate 5 common English words.
+    Generate 5 UNIQUE English words.
 
     Rules:
     - Each word must be {rule}
-    - Words must be simple and common
-    - Return ONLY comma-separated words
+    - Theme: {theme}
+    - Avoid very common beginner words like CAT, DOG, SUN, BAT
+    - Words must still be understandable (not obscure)
+    - No repeats
+    - No explanations
+
+    Return ONLY comma-separated words.
     """
 
     res = client.chat.completions.create(
         model="gpt-4o-mini",
+        temperature=0.9,   # 🔥 more randomness
         messages=[{"role": "user", "content": prompt}]
     )
 
     words = [w.strip().upper() for w in res.choices[0].message.content.split(",")]
+
     return words
 
 # ------------------------
