@@ -168,64 +168,54 @@ if "leaderboard" not in st.session_state:
 # CINEMATIC CHUCKY INTRO (NON-BLOCKING FIX)
 # ------------------------
 # ------------------------
-# CHUCKY INTRO (FINAL FIX)
+# CHUCKY INTRO (NO RERUN / NO STOP)
 # ------------------------
-if "intro_start" not in st.session_state:
-    st.session_state.intro_start = None
-
 if st.session_state.get("show_intro", False):
 
-    if st.session_state.intro_start is None:
-        st.session_state.intro_start = time.time()
+    exit_row = st.session_state.exit[0]
+    x_percent = 85
+    y_percent = 10 + (exit_row / GRID_SIZE) * 70
+
+    # play thunder once
+    if "intro_played" not in st.session_state:
         play_sound(THUNDER)
+        st.session_state.intro_played = True
 
-    elapsed_intro = time.time() - st.session_state.intro_start
+    st.markdown(f"""
+    <style>
 
-    if elapsed_intro < 4:
+    .chucky-container {{
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        animation: cinematicMove 4s forwards;
+        z-index: 9999;
+        pointer-events: none;
+    }}
 
-        exit_row = st.session_state.exit[0]
-        x_percent = 85
-        y_percent = 10 + (exit_row / GRID_SIZE) * 70
+    .chucky-container img {{
+        width: 75vw;
+        max-width: 900px;
+    }}
 
-        st.markdown(f"""
-        <style>
+    @keyframes cinematicMove {{
+        0% {{ transform: translate(-50%, -50%) scale(0.2); opacity:0; }}
+        10% {{ transform: translate(-50%, -50%) scale(2.5); opacity:1; }}
+        40% {{ transform: translate(-50%, -50%) scale(1.2); }}
+        75% {{ transform: translate({x_percent}vw, {y_percent}vh) scale(0.4); }}
+        100% {{ transform: translate({x_percent}vw, {y_percent}vh) scale(0.05); opacity:0; }}
+    }}
 
-        .chucky-container {{
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            animation: cinematicMove 4s forwards;
-            z-index: 9999;
-            pointer-events: none;
-        }}
+    </style>
 
-        .chucky-container img {{
-            width: 75vw;
-            max-width: 900px;
-        }}
+    <div class="chucky-container">
+        <img src="data:image/png;base64,{chucky_base64}">
+    </div>
+    """, unsafe_allow_html=True)
 
-        @keyframes cinematicMove {{
-            0% {{ transform: translate(-50%, -50%) scale(0.2); opacity:0; }}
-            10% {{ transform: translate(-50%, -50%) scale(2.5); opacity:1; }}
-            40% {{ transform: translate(-50%, -50%) scale(1.2); }}
-            75% {{ transform: translate({x_percent}vw, {y_percent}vh) scale(0.4); }}
-            100% {{ transform: translate({x_percent}vw, {y_percent}vh) scale(0.05); opacity:0; }}
-        }}
-
-        </style>
-
-        <div class="chucky-container">
-            <img src="data:image/png;base64,{chucky_base64}">
-        </div>
-        """, unsafe_allow_html=True)
-
-        # 🔁 Force rerun WITHOUT blocking UI
-        st.experimental_rerun()
-
-    else:
-        st.session_state.show_intro = False
-        st.session_state.intro_start = None
+    # ✅ disable intro AFTER first render
+    st.session_state.show_intro = False
 
 # ------------------------
 # UI
