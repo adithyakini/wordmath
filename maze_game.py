@@ -3,18 +3,22 @@ import random
 import string
 import time
 from openai import OpenAI
-import random
 import json
 import os
 import base64
 
+# ------------------------
+# IMAGE
+# ------------------------
 def get_base64_image(path):
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode()
 
 chucky_base64 = get_base64_image("chucky.png")
 
-        
+# ------------------------
+# LEADERBOARD
+# ------------------------
 LEADERBOARD_FILE = "leaderboard.json"
 
 def load_leaderboard():
@@ -26,555 +30,270 @@ def load_leaderboard():
 def save_leaderboard(data):
     with open(LEADERBOARD_FILE, "w") as f:
         json.dump(data, f)
-        
+
 # ------------------------
-# SOUND FUNCTION
+# SOUND
 # ------------------------
 def play_sound(url):
     st.markdown(f"""
-        <audio autoplay>
-        <source src="{url}" type="audio/mpeg">
-        </audio>
+    <audio autoplay>
+    <source src="{url}" type="audio/mpeg">
+    </audio>
     """, unsafe_allow_html=True)
-    
+
 THUNDER = "https://www.soundjay.com/nature/thunder-1.mp3"
 WRONG = "https://www.soundjay.com/button/beep-10.wav"
-WIN = "https://www.soundjay.com/misc/small-bell-ring-01a.mp3"
 HEARTBEAT = "https://www.soundjay.com/human/heartbeat-01a.mp3"
 
-if random.random() < 0.05:  # 5% chance each rerun
+# occasional thunder
+if random.random() < 0.05:
     play_sound(THUNDER)
-    
+
+# ------------------------
+# STYLE
+# ------------------------
 st.markdown("""
 <style>
-
-/* DARK BACKGROUND */
 .stApp {
     background: linear-gradient(180deg, #0b0f1a, #111827);
     color: #e5e7eb;
 }
-
-/* TILE BUTTONS */
 button[kind="secondary"] {
     background-color: #1f2937 !important;
-    color: #e5e7eb !important;
     border-radius: 10px !important;
-    border: 1px solid #374151 !important;
 }
-
-/* HOVER EFFECT */
-button:hover {
-    border: 1px solid #22c55e !important;
-}
-
-/* TITLE GLOW */
-h1 {
-    text-shadow: 0 0 10px #60a5fa, 0 0 20px #60a5fa;
-}
-
 </style>
-
-<div class="lightning"></div>
 """, unsafe_allow_html=True)
 
+# ------------------------
+# CONFIG
+# ------------------------
 GRID_SIZE = 10
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-# ------------------------
-# DIFFICULTY
-# ------------------------
 level = st.selectbox("Difficulty", ["easy","medium","hard"])
 
 # ------------------------
-# AI WORDS
+# WORDS
 # ------------------------
 def get_words(level):
-
-    if level == "easy":
-        rule = "exactly 3 letters"
-    elif level == "medium":
-        rule = "4 to 5 letters"
-    else:
-        rule = "6 or more letters"
-
-    # 🔥 random theme to diversify output
-    themes = ["nature", "space", "food", "objects", "animals", "mystery", "fantasy"]
-    theme = random.choice(themes)
+    rule = "exactly 3 letters" if level=="easy" else "4 to 5 letters" if level=="medium" else "6+ letters"
+    theme = random.choice(["nature","space","food","fantasy"])
 
     prompt = f"""
-    Generate 5 UNIQUE English words.
-
-    Rules:
-    - Each word must be {rule}
-    - Theme: {theme}
-    - Avoid very common beginner words like CAT, DOG, SUN, BAT
-    - Words must still be understandable (not obscure)
-    - No repeats
-    - No explanations
-
-    Return ONLY comma-separated words.
+    Generate words:
+    - {rule}
+    - theme: {theme}
+    - avoid CAT DOG SUN
+    - return comma-separated
     """
 
     res = client.chat.completions.create(
         model="gpt-4o-mini",
-        temperature=0.9,   # 🔥 more randomness
+        temperature=0.9,
         messages=[{"role": "user", "content": prompt}]
     )
 
-    words = [w.strip().upper() for w in res.choices[0].message.content.split(",")]
+    return [w.strip().upper() for w in res.choices[0].message.content.split(",")]
 
-    return words
-
-# ------------------------
-# PATH GENERATION
-# ------------------------
 def generate_full_path():
-    path = []
-    visited = set()
+    path, visited = [], set()
+    x,y = 0,0
+    path.append((x,y)); visited.add((x,y))
 
-    x, y = 0, 0
-    path.append((x,y))
-    visited.add((x,y))
-
-    # force path to reach right edge
-    while y < GRID_SIZE - 1:
-
+    while y < GRID_SIZE-1:
         moves = [(1,0),(-1,0),(0,1)]
         random.shuffle(moves)
 
-        moved = False
-
-        for dx, dy in moves:
-            nx, ny = x+dx, y+dy
-
-            if 0 <= nx < GRID_SIZE and 0 <= ny < GRID_SIZE and (nx,ny) not in visited:
-                x, y = nx, ny
-                path.append((x,y))
-                visited.add((x,y))
-                moved = True
+        for dx,dy in moves:
+            nx,ny = x+dx,y+dy
+            if 0<=nx<GRID_SIZE and 0<=ny<GRID_SIZE and (nx,ny) not in visited:
+                x,y = nx,ny
+                path.append((x,y)); visited.add((x,y))
                 break
-
-        if not moved:
-            y += 1
-            path.append((x,y))
-            visited.add((x,y))
+        else:
+            y+=1
+            path.append((x,y)); visited.add((x,y))
 
     return path
 
-def generate_words_for_path(path_length, level):
-
-    words = []
-
-    while sum(len(w) for w in words) < path_length:
-
-        new_words = get_words(level)
-
-        for w in new_words:
-            words.append(w)
-
-            if sum(len(w) for w in words) >= path_length:
-                break
-
+def generate_words_for_path(length, level):
+    words=[]
+    while sum(len(w) for w in words) < length:
+        words += get_words(level)
     return words
-    
-def embed_words_in_grid(path, words):
-    grid = [[random.choice(string.ascii_uppercase) for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
 
-    i = 0
-    for word in words:
-        for ch in word:
-            if i >= len(path):
-                return grid
-            x, y = path[i]
-            grid[x][y] = ch
-            i += 1
-
+def embed_words(path, words):
+    grid=[[random.choice(string.ascii_uppercase) for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+    i=0
+    for w in words:
+        for ch in w:
+            if i>=len(path): return grid
+            x,y = path[i]
+            grid[x][y]=ch
+            i+=1
     return grid
-    # ------------------------
-    # EMBED WORDS INTO PATH
-    # ------------------------
-    i = 0
-    for word in words:
-        for ch in word:
-            if i < len(path):
-                px, py = path[i]
-                grid[px][py] = ch
-                i += 1
-
-    return grid, path
 
 # ------------------------
 # INIT
 # ------------------------
-if "init" not in st.session_state or st.session_state.get("level") != level:
+if "init" not in st.session_state or st.session_state.get("level")!=level:
 
     path = generate_full_path()
-
     words = generate_words_for_path(len(path), level)
+    grid = embed_words(path, words)
 
-    grid = embed_words_in_grid(path, words)
+    st.session_state.update({
+        "grid":grid,
+        "path":path,
+        "words":words,
+        "entry":path[0],
+        "exit":path[-1],
+        "index":-1,
+        "lives":3,
+        "wrong_tiles":set(),
+        "start_time":time.time(),
+        "finished":False,
+        "current_word_index":0,
+        "letters_progress":0,
+        "completed_words":set(),
+        "show_intro":True,
+        "level":level
+    })
 
-    st.session_state.grid = grid
-    st.session_state.path = path
-    st.session_state.words = words
-    st.session_state.level = level
-    st.session_state.entry = path[0]
-    st.session_state.exit = path[-1]
-    st.session_state.index = -1
-    st.session_state.lives = 3
-    st.session_state.wrong_tiles = set()
-    st.session_state.start_time = time.time()
-    st.session_state.finished = False
-    st.session_state.current_word_index = 0
-    st.session_state.letters_progress = 0
-    st.session_state.init = True
-    st.session_state.show_intro = True
-    st.session_state.current_word_index = 0
-    st.session_state.letters_progress = 0
-
-    st.session_state.play_wrong = False
-    st.session_state.play_win = False
-    st.session_state.play_heartbeat = False
-    st.session_state.completed_words = set()
-    
-
-# leaderboard init
+# leaderboard
 if "leaderboard" not in st.session_state:
     st.session_state.leaderboard = load_leaderboard()
 
 # ------------------------
-# TIMER (FIXED)
+# INTRO
 # ------------------------
-if st.session_state.finished:
-    elapsed = st.session_state.get("final_time", 0)
-else:
-    elapsed = int(time.time() - st.session_state.start_time)
-
-# ------------------------
-# UI
-# ------------------------
-# ------------------------
-# CINEMATIC CHUCKY INTRO (FIXED FLOW)
-# ------------------------
-if st.session_state.get("show_intro", False):
-
-    exit_row = st.session_state.exit[0]
-
-    x_percent = 85
-    y_percent = 10 + (exit_row / GRID_SIZE) * 70
+if st.session_state.show_intro:
 
     play_sound(THUNDER)
 
     st.markdown(f"""
     <style>
-
-    @keyframes shake {{
-        0% {{ transform: translate(0px, 0px); }}
-        25% {{ transform: translate(5px, -5px); }}
-        50% {{ transform: translate(-5px, 5px); }}
-        75% {{ transform: translate(5px, 5px); }}
-        100% {{ transform: translate(0px, 0px); }}
-    }}
-
-    .stApp {{
-        animation: shake 0.4s;
-    }}
-
     .chucky-container {{
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        animation: cinematicMove 4s forwards;
-        z-index: 9999;
-        pointer-events: none;
+        position:fixed;
+        top:50%; left:50%;
+        transform:translate(-50%,-50%);
+        animation:boom 4s forwards;
     }}
+    .chucky-container img {{ width:70vw; }}
 
-    .chucky-container img {{
-        width: 75vw;
-        max-width: 900px;
-        border-radius: 20px;
+    @keyframes boom {{
+        0% {{transform:translate(-50%,-50%) scale(0.2);opacity:0}}
+        10% {{transform:translate(-50%,-50%) scale(2.5);opacity:1}}
+        100% {{transform:translate(80vw,50vh) scale(0.05);opacity:0}}
     }}
-
-    @keyframes cinematicMove {{
-        0% {{
-            transform: translate(-50%, -50%) scale(0.2);
-            opacity: 0;
-        }}
-        10% {{
-            transform: translate(-50%, -50%) scale(2.5);
-            opacity: 1;
-        }}
-        20% {{
-            transform: translate(-50%, -50%) scale(1.8);
-        }}
-        40% {{
-            transform: translate(-50%, -50%) scale(1.2);
-        }}
-        75% {{
-            transform: translate({x_percent}vw, {y_percent}vh) scale(0.4);
-        }}
-        100% {{
-            transform: translate({x_percent}vw, {y_percent}vh) scale(0.05);
-            opacity: 0;
-        }}
-    }}
-
     </style>
 
     <div class="chucky-container">
-        <img src="data:image/png;base64,{chucky_base64}">
+    <img src="data:image/png;base64,{chucky_base64}">
     </div>
     """, unsafe_allow_html=True)
 
-    # ✅ WAIT → THEN CONTINUE GAME
     time.sleep(4)
-
-    st.session_state.show_intro = False
+    st.session_state.show_intro=False
     st.rerun()
-    
-with st.sidebar:
-    st.title("🧠 How to Play")
 
-    st.markdown("""
-    **🧙 Objective**
-    - Enter through the gate
-    - Follow the hidden word path
-    - Reach the ghost 👻 and perform the exorcism
-
-    **🎯 Rules**
-    - Move step-by-step along the correct path
-    - Each step builds a word
-    - Complete words to progress
-
-    **❤️ Lives**
-    - You have 3 lives
-    - Wrong tile = lose 1 life
-
-    **🧩 Words**
-    - Words are revealed gradually
-    - Complete current word to unlock next
-
-    **🏁 Goal**
-    - Reach the exit gate
-    - Perform the exorcism faster for leaderboard!
-    """)
-    
+# ------------------------
+# UI
+# ------------------------
 st.title("🧙 Om Bhool Bhulaiya Swaahaa")
+elapsed=int(time.time()-st.session_state.start_time)
+st.write(f"⏱ {elapsed}s ❤️ {st.session_state.lives}")
 
-st.write(f"⏱️ Time: {elapsed}s | ❤️ Lives: {st.session_state.lives}")
-current_idx = min(st.session_state.current_word_index, len(st.session_state.words) - 1)
-words = st.session_state.words
-
-current_idx = st.session_state.current_word_index
-letters_done = st.session_state.letters_progress
-words = st.session_state.words
-
-display = []
-
-current_idx = st.session_state.current_word_index
-letters_done = st.session_state.letters_progress
-words = st.session_state.words
-
-for i, w in enumerate(words):
-
-    # ✅ COMPLETED words
-    if i < current_idx:
+# words display
+display=[]
+for i,w in enumerate(st.session_state.words):
+    if i in st.session_state.completed_words:
         display.append(w)
-
-    # ✅ CURRENT word (progressive reveal)
-    elif i == current_idx:
-        revealed = ""
-        for j, ch in enumerate(w):
-            if j < letters_done:
-                revealed += ch + " "
-            else:
-                revealed += "_ "
-        display.append(f"👉 {revealed.strip()}")
-
-    # ✅ FUTURE words (partial hint)
+    elif i==st.session_state.current_word_index:
+        reveal = "".join([c+" " if j<st.session_state.letters_progress else "_ " for j,c in enumerate(w)])
+        display.append("👉 "+reveal.strip())
     else:
-        hint = ""
+        hint=" ".join([c if j in (0,len(w)-1) else "_" for j,c in enumerate(w)])
+        display.append(hint)
 
-        for j, ch in enumerate(w):
-            if j == 0:
-                hint += ch + " "       # first letter
-            elif j == len(w) - 1:
-                hint += ch + " "       # last letter
-            else:
-                hint += "_ "
-
-        display.append(hint.strip())
-
-st.write("Words:", " → ".join(display))
-
-grid = st.session_state.grid
-path = st.session_state.path
-idx = st.session_state.index
+st.write(" → ".join(display))
 
 # ------------------------
 # GRID
 # ------------------------
+grid,path,idx = st.session_state.grid, st.session_state.path, st.session_state.index
+
 for i in range(GRID_SIZE):
-    cols = st.columns(GRID_SIZE + 2)
+    cols=st.columns(GRID_SIZE+2)
+    for j in range(GRID_SIZE+2):
 
-    for j in range(GRID_SIZE + 2):
-
-        # ENTRY SIDE
-        if j == 0:
-            if i == st.session_state.entry[0]:
-                label = "🚪🧙" if idx == -1 else "🚪"
-            else:
-                label = ""
-            cols[j].button(label, key=f"{i}-entry")
+        if j==0:
+            cols[j].button("🚪🧙" if i==st.session_state.entry[0] and idx==-1 else "", key=f"{i}-e")
             continue
 
-        # EXIT SIDE
-        if j == GRID_SIZE + 1:
-            if i == st.session_state.exit[0]:
-                label = "👻🚪"
-            else:
-                label = ""
-            cols[j].button(label, key=f"{i}-exit")
+        if j==GRID_SIZE+1:
+            cols[j].button("👻🚪" if i==st.session_state.exit[0] else "", key=f"{i}-x")
             continue
 
-        x, y = i, j-1
-        base = grid[x][y]
+        x,y=i,j-1
+        base=grid[x][y]
 
         # wizard
-        if idx >= 0 and idx < len(path) and (x,y) == path[idx]:
-            label = "🧙"
+        if idx>=0 and (x,y)==path[idx]:
 
-        # correct path
-        elif idx >= 0 and (x,y) in path[:idx]:
-            label = f"🟩{base}"
+            # show final letter if word completes
+            total=0
+            label="🧙"
+            for w in st.session_state.words:
+                total+=len(w)
+                if idx==total-1:
+                    label=f"🧙{base}"
+                    break
 
-        # wrong
+        elif (x,y) in path[:idx]:
+            label=f"🟩{base}"
         elif (x,y) in st.session_state.wrong_tiles:
-            label = f"🟥{base}🔴"
-
+            label=f"🟥{base}"
         else:
-            label = base
+            label=base
 
         if cols[j].button(label, key=f"{x}-{y}"):
 
-            if st.session_state.finished:
-                continue
+            if idx==-1 and (x,y)==st.session_state.entry:
+                st.session_state.index=0
+                st.rerun()
 
-            current_index = st.session_state.index
+            elif idx>=0 and (x,y)==path[idx+1]:
 
-            # ENTER MAZE
-            if current_index == -1:
-                if (x,y) == st.session_state.entry:
-                    st.session_state.index = 0
-                    st.rerun()
-                else:
-                    st.session_state.lives -= 1
-                    st.session_state.wrong_tiles.add((x,y))
-                    st.warning("Enter through the gate!")
+                st.session_state.index+=1
+                st.session_state.letters_progress+=1
 
-            # NORMAL MOVE
+                w = st.session_state.words[st.session_state.current_word_index]
+
+                if st.session_state.letters_progress>=len(w):
+                    st.session_state.completed_words.add(st.session_state.current_word_index)
+                    st.session_state.current_word_index+=1
+                    st.session_state.letters_progress=0
+
+                st.rerun()
+
             else:
-                next_index = current_index + 1
+                st.session_state.lives-=1
+                play_sound(WRONG)
+                st.session_state.wrong_tiles.add((x,y))
 
-                if next_index < len(path) and (x,y) == path[next_index]:
-                    st.session_state.index = next_index
-                    st.session_state.letters_progress += 1
-                
-                    if st.session_state.current_word_index < len(st.session_state.words):
-                        current_word = st.session_state.words[st.session_state.current_word_index]
-                    else:
-                        current_word = ""
-                
-                    # ✅ WORD COMPLETED
-                    if (
-                        st.session_state.current_word_index < len(st.session_state.words)
-                        and st.session_state.letters_progress >= len(current_word)
-                    ):
-                        # mark word complete
-                        st.session_state.completed_words.add(st.session_state.current_word_index)
-                
-                        st.session_state.current_word_index += 1
-                        st.session_state.letters_progress = 0
-                
-                    st.rerun()
-                else:
-                    st.session_state.lives -= 1
-                    play_sound(WRONG)
-                    if st.session_state.lives == 1:
-                        play_sound(HEARTBEAT)
-                    st.session_state.wrong_tiles.add((x,y))
-                    st.warning("Wrong path!")
-
-            if st.session_state.lives <= 0:
-                st.error("💀 Game Over")
-                st.session_state.finished = True
-
-# ------------------------
-# WIN (EXORCISM)
-# ------------------------
-if idx == len(path) - 1 and not st.session_state.finished:
-
-    final_time = int(time.time() - st.session_state.start_time)
-
-    st.session_state.final_time = final_time
-    st.session_state.finished = True
-
-    leaderboard = st.session_state.leaderboard
-
-    # check if qualifies for top 5
-    qualifies = (
-        len(leaderboard) < 5 or
-        final_time < max(entry["time"] for entry in leaderboard)
-    )
-
-    if qualifies:
-        st.session_state.new_high_score = True
-    else:
-        st.success(f"✨ Completed in {final_time}s!")
-
-if st.session_state.get("new_high_score", False):
-
-    st.success(f"🏆 New High Score! Time: {st.session_state.final_time}s")
-
-    name = st.text_input("Enter your name:")
-
-    if st.button("Submit Score"):
-
-        leaderboard = st.session_state.leaderboard
-
-        leaderboard.append({
-            "name": name if name else "Anonymous",
-            "time": st.session_state.final_time
-        })
-
-        # sort and keep top 5
-        leaderboard = sorted(leaderboard, key=lambda x: x["time"])[:5]
-
-        save_leaderboard(leaderboard)
-
-        st.session_state.leaderboard = leaderboard
-        st.session_state.new_high_score = False
-
-        st.success("Score saved!")
-        
 # ------------------------
 # LEADERBOARD
 # ------------------------
 st.subheader("🏆 Leaderboard")
-
-for i, entry in enumerate(st.session_state.leaderboard):
-    st.write(f"{i+1}. {entry['name']} - {entry['time']}s")
+for i,e in enumerate(st.session_state.leaderboard):
+    st.write(f"{i+1}. {e['name']} - {e['time']}s")
 
 # ------------------------
 # RESET
 # ------------------------
 if st.button("🔄 New Game"):
-
-    leaderboard = st.session_state.leaderboard
-
+    lb=st.session_state.leaderboard
     st.session_state.clear()
-
-    st.session_state.leaderboard = leaderboard
-
+    st.session_state.leaderboard=lb
     st.rerun()
