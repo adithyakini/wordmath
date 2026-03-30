@@ -101,6 +101,8 @@ if "init" not in st.session_state or st.session_state.get("level") != level:
 
     st.session_state.init = True
 
+if "leaderboard" not in st.session_state:
+    st.session_state.leaderboard = []
 # ------------------------
 # TIMER
 # ------------------------
