@@ -3,6 +3,55 @@ import random
 import string
 import time
 from openai import OpenAI
+st.markdown("""
+<style>
+
+/* DARK BACKGROUND */
+.stApp {
+    background: linear-gradient(180deg, #0b0f1a, #111827);
+    color: #e5e7eb;
+}
+
+/* TILE BUTTONS */
+button[kind="secondary"] {
+    background-color: #1f2937 !important;
+    color: #e5e7eb !important;
+    border-radius: 10px !important;
+    border: 1px solid #374151 !important;
+}
+
+/* HOVER EFFECT */
+button:hover {
+    border: 1px solid #22c55e !important;
+}
+
+/* LIGHTNING FLASH ANIMATION */
+@keyframes lightning {
+    0% { opacity: 0; }
+    5% { opacity: 1; background: #ffffff; }
+    10% { opacity: 0; }
+    100% { opacity: 0; }
+}
+
+.lightning {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    animation: lightning 8s infinite;
+    pointer-events: none;
+}
+
+/* TITLE GLOW */
+h1 {
+    text-shadow: 0 0 10px #60a5fa, 0 0 20px #60a5fa;
+}
+
+</style>
+
+<div class="lightning"></div>
+""", unsafe_allow_html=True)
 
 GRID_SIZE = 10
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -163,7 +212,35 @@ else:
 # ------------------------
 # UI
 # ------------------------
-st.title("🧙 Word Maze Exorcism")
+
+with st.sidebar:
+    st.title("🧠 How to Play")
+
+    st.markdown("""
+    **🧙 Objective**
+    - Enter through the gate
+    - Follow the hidden word path
+    - Reach the ghost 👻 and perform the exorcism
+
+    **🎯 Rules**
+    - Move step-by-step along the correct path
+    - Each step builds a word
+    - Complete words to progress
+
+    **❤️ Lives**
+    - You have 3 lives
+    - Wrong tile = lose 1 life
+
+    **🧩 Words**
+    - Words are revealed gradually
+    - Complete current word to unlock next
+
+    **🏁 Goal**
+    - Reach the exit gate
+    - Perform the exorcism faster for leaderboard!
+    """)
+    
+st.title("🧙 Om Bhool Bhulaiya Swaahaa")
 
 st.write(f"⏱️ Time: {elapsed}s | ❤️ Lives: {st.session_state.lives}")
 current_idx = min(st.session_state.current_word_index, len(st.session_state.words) - 1)
