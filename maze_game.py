@@ -165,37 +165,67 @@ if "leaderboard" not in st.session_state:
     st.session_state.leaderboard = load_leaderboard()
 
 # ------------------------
-# INTRO
+# CINEMATIC CHUCKY INTRO (NON-BLOCKING FIX)
 # ------------------------
-if st.session_state.show_intro:
+if "intro_start" not in st.session_state:
+    st.session_state.intro_start = None
 
-    play_sound(THUNDER)
+if st.session_state.get("show_intro", False):
 
-    st.markdown(f"""
-    <style>
-    .chucky-container {{
-        position:fixed;
-        top:50%; left:50%;
-        transform:translate(-50%,-50%);
-        animation:boom 4s forwards;
-    }}
-    .chucky-container img {{ width:70vw; }}
+    # start timer once
+    if st.session_state.intro_start is None:
+        st.session_state.intro_start = time.time()
+        play_sound(THUNDER)
 
-    @keyframes boom {{
-        0% {{transform:translate(-50%,-50%) scale(0.2);opacity:0}}
-        10% {{transform:translate(-50%,-50%) scale(2.5);opacity:1}}
-        100% {{transform:translate(80vw,50vh) scale(0.05);opacity:0}}
-    }}
-    </style>
+    elapsed_intro = time.time() - st.session_state.intro_start
 
-    <div class="chucky-container">
-    <img src="data:image/png;base64,{chucky_base64}">
-    </div>
-    """, unsafe_allow_html=True)
+    # animation still playing
+    if elapsed_intro < 4:
 
-    time.sleep(4)
-    st.session_state.show_intro=False
-    st.rerun()
+        exit_row = st.session_state.exit[0]
+        x_percent = 85
+        y_percent = 10 + (exit_row / GRID_SIZE) * 70
+
+        st.markdown(f"""
+        <style>
+
+        .chucky-container {{
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: cinematicMove 4s forwards;
+            z-index: 9999;
+            pointer-events: none;
+        }}
+
+        .chucky-container img {{
+            width: 75vw;
+            max-width: 900px;
+        }}
+
+        @keyframes cinematicMove {{
+            0% {{ transform: translate(-50%, -50%) scale(0.2); opacity:0; }}
+            10% {{ transform: translate(-50%, -50%) scale(2.5); opacity:1; }}
+            40% {{ transform: translate(-50%, -50%) scale(1.2); }}
+            75% {{ transform: translate({x_percent}vw, {y_percent}vh) scale(0.4); }}
+            100% {{ transform: translate({x_percent}vw, {y_percent}vh) scale(0.05); opacity:0; }}
+        }}
+
+        </style>
+
+        <div class="chucky-container">
+            <img src="data:image/png;base64,{chucky_base64}">
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.stop()  # 👈 safe here because reruns continue
+
+    else:
+        # animation done → start game
+        st.session_state.show_intro = False
+        st.session_state.intro_start = None
+        st.rerun()
 
 # ------------------------
 # UI
