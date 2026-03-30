@@ -5,10 +5,16 @@ import time
 from openai import OpenAI
 import random
 
-
 # ------------------------
-# SOUND FILES
+# SOUND FUNCTION
 # ------------------------
+def play_sound(url):
+    st.markdown(f"""
+        <audio autoplay>
+        <source src="{url}" type="audio/mpeg">
+        </audio>
+    """, unsafe_allow_html=True)
+    
 THUNDER = "https://www.soundjay.com/nature/thunder-1.mp3"
 WRONG = "https://www.soundjay.com/button/beep-10.wav"
 WIN = "https://www.soundjay.com/misc/small-bell-ring-01a.mp3"
@@ -280,16 +286,6 @@ grid = st.session_state.grid
 path = st.session_state.path
 idx = st.session_state.index
 
-# ------------------------
-# SOUND PLAYER
-# ------------------------
-def play_sound(url):
-    st.markdown(f"""
-        <audio autoplay>
-        <source src="{url}" type="audio/mpeg">
-        </audio>
-    """, unsafe_allow_html=True)
-    
 # ------------------------
 # GRID
 # ------------------------
