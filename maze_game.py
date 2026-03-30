@@ -104,47 +104,47 @@ st.write("🚪 Entry Gate (Wizard starts outside)")
 st.write("🚪 Exit Gate (Ghost waiting outside)")
 
 # ------------------------
-# GRID UI
+# GRID UI (FIXED COLORS)
 # ------------------------
 for i in range(GRID_SIZE):
     cols = st.columns(GRID_SIZE)
     for j in range(GRID_SIZE):
 
-        label = grid[i][j]
-        style = ""
+        base = grid[i][j]
 
-        # wizard position
+        # Wizard position
         if idx < len(path) and (i,j) == path[idx]:
             label = "🧙"
 
-        # correct path (green border)
+        # Correct path (green)
         elif (i,j) in path[:idx]:
-            style = "border: 2px solid green;"
+            label = f"🟩{base}"
 
-        # wrong clicked tiles (red border)
+        # Wrong tiles (red)
         elif (i,j) in st.session_state.wrong_tiles:
-            style = "border: 2px solid red;"
+            label = f"🟥{base}"
 
-        btn = cols[j].button(label, key=f"{i}-{j}")
+        else:
+            label = base
 
-        if btn:
+        if cols[j].button(label, key=f"{i}-{j}"):
 
             if st.session_state.finished:
                 continue
 
-            # correct move
+            # ✅ Correct move
             if idx < len(path) and (i,j) == path[idx]:
                 st.session_state.index += 1
-                st.audio("https://www.soundjay.com/button/beep-07.wav")
                 st.rerun()
 
+            # ❌ Wrong move
             else:
                 st.session_state.lives -= 1
                 st.session_state.wrong_tiles.add((i,j))
-                st.warning("❌ Wrong step!")
+                st.warning("Wrong tile!")
 
                 if st.session_state.lives <= 0:
-                    st.error("💀 Game Over")
+                    st.error("Game Over")
                     st.session_state.finished = True
 
 # ------------------------
