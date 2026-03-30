@@ -114,6 +114,8 @@ if "init" not in st.session_state or st.session_state.get("level") != level:
     st.session_state.finished = False
 
     st.session_state.init = True
+    st.session_state.current_word_index = 0
+    st.session_state.letters_progress = 0
 
 # leaderboard init
 if "leaderboard" not in st.session_state:
@@ -133,7 +135,38 @@ else:
 st.title("🧙 Word Maze Exorcism")
 
 st.write(f"⏱️ Time: {elapsed}s | ❤️ Lives: {st.session_state.lives}")
-st.write(f"Words: {' → '.join(st.session_state.words)}")
+current_idx = st.session_state.current_word_index
+words = st.session_state.words
+
+current_idx = st.session_state.current_word_index
+letters_done = st.session_state.letters_progress
+words = st.session_state.words
+
+display = []
+
+for i, w in enumerate(words):
+
+    # COMPLETED words
+    if i < current_idx:
+        display.append(w)
+
+    # CURRENT word (partial reveal)
+    elif i == current_idx:
+
+        revealed = ""
+        for j, ch in enumerate(w):
+            if j < letters_done:
+                revealed += ch + " "
+            else:
+                revealed += "_ "
+
+        display.append(f"👉 {revealed.strip()}")
+
+    # FUTURE words
+    else:
+        display.append("???")
+
+st.write("Words:", " → ".join(display))
 
 grid = st.session_state.grid
 path = st.session_state.path
@@ -206,6 +239,11 @@ for i in range(GRID_SIZE):
 
                 if next_index < len(path) and (x,y) == path[next_index]:
                     st.session_state.index = next_index
+                    st.session_state.letters_progress += 1
+                    current_word = st.session_state.words[st.session_state.current_word_index]
+                    if st.session_state.letters_progress >= len(current_word):
+                        st.session_state.current_word_index += 1
+                        st.session_state.letters_progress = 0
                     st.rerun()
                 else:
                     st.session_state.lives -= 1
