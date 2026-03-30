@@ -3,6 +3,8 @@ import random
 import string
 import time
 from openai import OpenAI
+import random
+
 
 # ------------------------
 # SOUND FILES
@@ -12,6 +14,9 @@ WRONG = "https://www.soundjay.com/button/beep-10.wav"
 WIN = "https://www.soundjay.com/misc/small-bell-ring-01a.mp3"
 HEARTBEAT = "https://www.soundjay.com/human/heartbeat-01a.mp3"
 
+if random.random() < 0.05:  # 5% chance each rerun
+    play_sound(THUNDER)
+    
 st.markdown("""
 <style>
 
@@ -278,24 +283,12 @@ idx = st.session_state.index
 # ------------------------
 # SOUND PLAYER
 # ------------------------
-
-# ambient thunder (always present)
-st.audio(THUNDER, autoplay=True, loop=True)
-
-# wrong move
-if st.session_state.get("play_wrong", False):
-    st.audio(WRONG, autoplay=True)
-    st.session_state.play_wrong = False
-
-# heartbeat (low life)
-if st.session_state.get("play_heartbeat", False):
-    st.audio(HEARTBEAT, autoplay=True)
-    st.session_state.play_heartbeat = False
-
-# win sound
-if st.session_state.get("play_win", False):
-    st.audio(WIN, autoplay=True)
-    st.session_state.play_win = False
+def play_sound(url):
+    st.markdown(f"""
+        <audio autoplay>
+        <source src="{url}" type="audio/mpeg">
+        </audio>
+    """, unsafe_allow_html=True)
     
 # ------------------------
 # GRID
@@ -376,9 +369,9 @@ for i in range(GRID_SIZE):
                     st.rerun()
                 else:
                     st.session_state.lives -= 1
-                    st.session_state.play_wrong = True
+                    play_sound(WRONG)
                     if st.session_state.lives == 1:
-                        st.session_state.play_heartbeat = True
+                        play_sound(HEARTBEAT)
                     st.session_state.wrong_tiles.add((x,y))
                     st.warning("Wrong path!")
 
@@ -398,7 +391,7 @@ if idx == len(path) - 1 and not st.session_state.finished:
     st.session_state.final_time = final_time   # ✅ REQUIRED
     st.session_state.leaderboard.append(final_time)
     st.session_state.finished = True
-    st.session_state.play_win = True
+    play_sound(WIN)
 
 # ------------------------
 # LEADERBOARD
