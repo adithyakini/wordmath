@@ -2,237 +2,150 @@ import streamlit as st
 import random
 import string
 
-st.set_page_config(page_title="Exorcist WOW", layout="centered")
+GRID_SIZE = 8
 
-GRID_SIZE = 10
-WORDS = ["APPLE", "TRAIN", "WATER", "LIGHT", "PLANT"]
+# ------------------------
+# WORD POOL
+# ------------------------
+WORDS = ["CAT", "DOG", "SUN", "MOON", "STAR", "FIRE", "WIND", "TREE", "ROCK"]
 
-RIDDLES = {
-    "APPLE": "Fruit 🍎",
-    "TRAIN": "Runs on tracks 🚆",
-    "WATER": "You drink it 💧",
-    "LIGHT": "Opposite of dark 💡",
-    "PLANT": "Grows in soil 🌱"
-}
+# ------------------------
+# UTILS
+# ------------------------
+def get_neighbors(x, y):
+    moves = [(x+1,y),(x-1,y),(x,y+1),(x,y-1)]
+    return [(i,j) for i,j in moves if 0 <= i < GRID_SIZE and 0 <= j < GRID_SIZE]
 
-# -----------------------
-# SAFE SESSION INIT
-# -----------------------
-defaults = {
-    "grid": None,
-    "path": None,
-    "step": 0,
-    "word_index": 0,
-    "current_input": "",
-    "used_indices": [],
-    "lives": 3,
-    "awaiting": False,
-    "q": None,
-    "a": None,
-    "feedback": ""
-}
-
-for k, v in defaults.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
-
-# -----------------------
-# BUILD SNAKE PATH
-# -----------------------
-def build_game():
+# ------------------------
+# MAZE GENERATOR (DFS)
+# ------------------------
+def generate_maze():
     grid = [[random.choice(string.ascii_uppercase) for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
 
+    start = (0, 0)
+    visited = set()
     path = []
-    for r in range(GRID_SIZE):
-        if r % 2 == 0:
-            for c in range(GRID_SIZE):
-                path.append((r, c))
-        else:
-            for c in reversed(range(GRID_SIZE)):
-                path.append((r, c))
 
-    idx = 0
-    for word in WORDS:
-        for ch in word:
-            r, c = path[idx]
-            grid[r][c] = ch
-            idx += 1
+    def dfs(x, y):
+        visited.add((x,y))
+        path.append((x,y))
 
-    return grid, path
+        if len(path) > GRID_SIZE * 2:
+            return True
 
-if st.session_state.grid is None:
-    grid, path = build_game()
+        neighbors = get_neighbors(x,y)
+        random.shuffle(neighbors)
+
+        for nx, ny in neighbors:
+            if (nx,ny) not in visited:
+                if dfs(nx, ny):
+                    return True
+
+        path.pop()
+        return False
+
+    dfs(0,0)
+
+    # embed words along path
+    word_path = []
+    i = 0
+    for word in WORDS[:5]:
+        for char in word:
+            if i < len(path):
+                x,y = path[i]
+                grid[x][y] = char
+                word_path.append((x,y))
+                i += 1
+
+    goal = word_path[-1]
+
+    return grid, word_path, goal
+
+# ------------------------
+# VALID MOVES (SMART)
+# ------------------------
+def get_valid_moves(player, path):
+    neighbors = get_neighbors(*player)
+    return [n for n in neighbors if n in path]
+
+# ------------------------
+# GHOST AI
+# ------------------------
+def move_ghost(ghost, player):
+    gx, gy = ghost
+    px, py = player
+
+    if abs(px - gx) > abs(py - gy):
+        gx += 1 if px > gx else -1 if px < gx else 0
+    else:
+        gy += 1 if py > gy else -1 if py < gy else 0
+
+    return (gx, gy)
+
+# ------------------------
+# INIT
+# ------------------------
+if "grid" not in st.session_state:
+    grid, path, goal = generate_maze()
     st.session_state.grid = grid
     st.session_state.path = path
+    st.session_state.goal = goal
+    st.session_state.player = (0,0)
+    st.session_state.ghost = goal
+    st.session_state.game_over = False
 
-# -----------------------
-# MATH
-# -----------------------
-def gen_q():
-    a = random.randint(1, 10)
-    b = random.randint(1, 10)
-    return f"{a} + {b}", str(a + b)
+grid = st.session_state.grid
+player = st.session_state.player
+ghost = st.session_state.ghost
+goal = st.session_state.goal
 
-# -----------------------
-# LETTER LOGIC
-# -----------------------
-def click_letter(idx, letter):
-    if idx in st.session_state.used_indices:
-        return
+st.title("🧙 Smart Word Maze")
 
-    st.session_state.current_input += letter
-    st.session_state.used_indices.append(idx)
+valid_moves = get_valid_moves(player, st.session_state.path)
 
-def undo():
-    if st.session_state.current_input:
-        st.session_state.current_input = st.session_state.current_input[:-1]
-        st.session_state.used_indices.pop()
-
-def clear():
-    st.session_state.current_input = ""
-    st.session_state.used_indices = []
-
-def shuffle_letters():
-    st.session_state.letter_order = random.sample(
-        list(range(len(WORDS[st.session_state.word_index]))),
-        len(WORDS[st.session_state.word_index])
-    )
-
-# -----------------------
-# SUBMIT WORD
-# -----------------------
-def submit_word():
-    target = WORDS[st.session_state.word_index]
-
-    if st.session_state.current_input == target:
-        for _ in target:
-            st.session_state.step += 1
-
-        st.session_state.awaiting = True
-        st.session_state.feedback = "✅ Correct!"
-        clear()
-    else:
-        st.session_state.feedback = "❌ Try again!"
-        clear()
-
-# -----------------------
-# UI HEADER
-# -----------------------
-st.title("🧙 Exorcist WOW")
-
-if st.session_state.lives <= 0:
-    st.error("💀 Game Over")
-    if st.button("Restart"):
-        st.session_state.clear()
-        st.rerun()
-    st.stop()
-
-if st.session_state.word_index >= len(WORDS):
-    st.success("👻 You reached the ghost! Exorcism complete!")
-    st.stop()
-
-target = WORDS[st.session_state.word_index]
-
-st.info(RIDDLES[target])
-
-# -----------------------
-# WORD SLOTS
-# -----------------------
-slots = []
-for i in range(len(target)):
-    if i < len(st.session_state.current_input):
-        slots.append(st.session_state.current_input[i])
-    else:
-        slots.append("_")
-
-st.markdown("### " + " ".join(slots))
-st.caption(f"Lives ❤️: {st.session_state.lives}")
-
-if st.session_state.feedback:
-    st.write(st.session_state.feedback)
-
-# -----------------------
-# LETTER BANK
-# -----------------------
-letters = list(target)
-
-if "letter_order" not in st.session_state:
-    st.session_state.letter_order = list(range(len(letters)))
-
-cols = st.columns(len(letters))
-
-for i, idx in enumerate(st.session_state.letter_order):
-    letter = letters[idx]
-    disabled = idx in st.session_state.used_indices
-
-    if cols[i].button(letter, disabled=disabled):
-        click_letter(idx, letter)
-        st.rerun()
-
-# controls
-c1, c2, c3, c4 = st.columns(4)
-
-with c1:
-    if st.button("Submit"):
-        submit_word()
-        st.rerun()
-
-with c2:
-    if st.button("Undo"):
-        undo()
-        st.rerun()
-
-with c3:
-    if st.button("Clear"):
-        clear()
-        st.rerun()
-
-with c4:
-    if st.button("Shuffle"):
-        shuffle_letters()
-        st.rerun()
-
-# -----------------------
-# GRID DISPLAY
-# -----------------------
+# ------------------------
+# GRID RENDER
+# ------------------------
 for i in range(GRID_SIZE):
     cols = st.columns(GRID_SIZE)
     for j in range(GRID_SIZE):
-        pos = (i, j)
 
-        if pos in st.session_state.path[:st.session_state.step]:
-            label = f"🟨"
-        elif pos == st.session_state.path[st.session_state.step]:
+        label = grid[i][j]
+
+        if (i,j) == player:
             label = "🧙"
-        elif pos == st.session_state.path[-1]:
+        elif (i,j) == ghost:
             label = "👻"
-        else:
-            label = "⬛"
+        elif (i,j) in valid_moves:
+            label = f"🟩{grid[i][j]}"
 
-        cols[j].button(label, key=f"{i}-{j}", disabled=True)
+        if cols[j].button(label, key=f"{i}-{j}"):
 
-# -----------------------
-# DOOR SYSTEM
-# -----------------------
-if st.session_state.awaiting:
-    st.subheader("🚪 Solve to Continue")
+            if st.session_state.game_over:
+                continue
 
-    if st.session_state.q is None:
-        q, a = gen_q()
-        st.session_state.q = q
-        st.session_state.a = a
+            if (i,j) in valid_moves:
+                st.session_state.player = (i,j)
 
-    st.write(st.session_state.q)
-    ans = st.text_input("Answer")
+                # move ghost AFTER player
+                st.session_state.ghost = move_ghost(st.session_state.ghost, st.session_state.player)
 
-    if st.button("Submit Answer"):
-        if ans.strip() == st.session_state.a:
-            st.success("Door opened! ✅")
-            st.session_state.word_index += 1
-        else:
-            st.error("Wrong! Lost a life ❌")
-            st.session_state.lives -= 1
+            else:
+                st.warning("❌ Invalid move")
 
-        st.session_state.awaiting = False
-        st.session_state.q = None
-        st.rerun()
+# ------------------------
+# GAME STATES
+# ------------------------
+if st.session_state.player == goal:
+    st.success("🎉 You reached the ghost!")
+
+if st.session_state.player == st.session_state.ghost:
+    st.error("💀 Ghost caught you!")
+    st.session_state.game_over = True
+
+# ------------------------
+# RESET
+# ------------------------
+if st.button("🔄 Restart"):
+    for k in list(st.session_state.keys()):
+        del st.session_state[k]
