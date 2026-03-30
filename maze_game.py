@@ -78,16 +78,12 @@ def generate_full_path():
     return path
 
     def generate_words_for_path(path_length, level):
-
-    words = []
+        words = []
 
     while sum(len(w) for w in words) < path_length:
-
         new_words = get_words(level)
-
         for w in new_words:
             words.append(w)
-
             if sum(len(w) for w in words) >= path_length:
                 break
 
