@@ -122,7 +122,7 @@ for i in range(GRID_SIZE):
 
         # Wrong tiles (red)
         elif (i,j) in st.session_state.wrong_tiles:
-            label = f"🟥{base}"
+    label = f"🟥{base}🔴"
 
         else:
             label = base
