@@ -304,8 +304,8 @@ for i in range(GRID_SIZE):
                     label=f"🧙{base}"
                     break
 
-        elif (x,y) in path[:idx]:
-            label=f"🟩{base}"
+        elif idx > 0 and (x,y) in path[:idx]:
+            label = f"🟩{base}"
         elif (x,y) in st.session_state.wrong_tiles:
             label=f"🟥{base}"
         else:
