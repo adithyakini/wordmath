@@ -33,16 +33,6 @@ button:hover {
     100% { opacity: 0; }
 }
 
-.lightning {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    animation: lightning 8s infinite;
-    pointer-events: none;
-}
-
 /* TITLE GLOW */
 h1 {
     text-shadow: 0 0 10px #60a5fa, 0 0 20px #60a5fa;
