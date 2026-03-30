@@ -487,22 +487,17 @@ for i in range(GRID_SIZE):
                 if next_index < len(path) and (x,y) == path[next_index]:
                     st.session_state.index = next_index
                     st.session_state.letters_progress += 1
-                
-                    if st.session_state.current_word_index < len(st.session_state.words):
-                        current_word = st.session_state.words[st.session_state.current_word_index]
-                    else:
-                        current_word = ""
-                
-                    # ✅ WORD COMPLETED
-                    if (
-                        st.session_state.current_word_index < len(st.session_state.words)
-                        and st.session_state.letters_progress >= len(current_word)
-                    ):
-                        # mark word complete
-                        st.session_state.completed_words.add(st.session_state.current_word_index)
-                
-                        st.session_state.current_word_index += 1
-                        st.session_state.letters_progress = 0
+                    # 🔥 FIX: detect completion using PATH INDEX (not letters_progress)
+                    total = 0
+
+                    for i, w in enumerate(st.session_state.words):
+                        total += len(w)
+
+                        if st.session_state.index == total - 1:
+                            st.session_state.completed_words.add(i)
+                            st.session_state.current_word_index = i + 1
+                            st.session_state.letters_progress = 0
+                            break
                 
                     st.rerun()
                 else:
