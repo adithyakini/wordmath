@@ -247,7 +247,8 @@ if st.session_state.get("show_intro", False):
     }
 
     .chucky-container img {
-        width: 300px;
+        width: 60vw;   /* BIG start */
+        max-width: 700px;
         border-radius: 20px;
     }
 
