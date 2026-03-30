@@ -102,21 +102,19 @@ level = st.selectbox("Difficulty", ["easy","medium","hard"])
 if "init" not in st.session_state or st.session_state.get("level") != level:
 
     words = get_words(level)
+
     grid, path = generate_branching_path(words)
 
+    st.session_state.words = words
     st.session_state.grid = grid
     st.session_state.path = path
-    st.session_state.words = words
     st.session_state.level = level
 
     st.session_state.index = 0
-    st.session_state.start_time = time.time()
-    st.session_state.finished = False
     st.session_state.lives = 3
     st.session_state.wrong_tiles = set()
-
-    if "leaderboard" not in st.session_state:
-        st.session_state.leaderboard = []
+    st.session_state.start_time = time.time()
+    st.session_state.finished = False
 
     st.session_state.init = True
 
