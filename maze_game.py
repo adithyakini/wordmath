@@ -209,7 +209,7 @@ if "init" not in st.session_state or st.session_state.get("level") != level:
     st.session_state.current_word_index = 0
     st.session_state.letters_progress = 0
     st.session_state.init = True
-    
+    st.session_state.show_intro = True
     st.session_state.current_word_index = 0
     st.session_state.letters_progress = 0
 
@@ -232,7 +232,49 @@ else:
 # ------------------------
 # UI
 # ------------------------
+if st.session_state.get("show_intro", False):
 
+    st.markdown("""
+    <style>
+
+    .chucky-container {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        animation: shrinkMove 4s forwards;
+        z-index: 9999;
+    }
+
+    .chucky-container img {
+        width: 300px;
+        border-radius: 20px;
+    }
+
+    @keyframes shrinkMove {
+        0% {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+        50% {
+            transform: translate(30vw, 10vh) scale(0.5);
+        }
+        100% {
+            transform: translate(45vw, 20vh) scale(0.1);
+            opacity: 0;
+        }
+    }
+
+    </style>
+
+    <div class="chucky-container">
+        <img src="chucky.png">
+    </div>
+    """, unsafe_allow_html=True)
+
+    # stop interaction while animation plays
+    st.stop()
+    
 with st.sidebar:
     st.title("🧠 How to Play")
 
@@ -457,3 +499,10 @@ if st.button("🔄 New Game"):
     st.session_state.leaderboard = leaderboard
 
     st.rerun()
+
+
+if st.session_state.get("show_intro", False):
+    time.sleep(4)
+    st.session_state.show_intro = False
+    st.rerun()
+    
