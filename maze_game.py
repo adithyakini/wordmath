@@ -39,7 +39,7 @@ button:hover {
     left: 0;
     width: 100%;
     height: 100%;
-    animation: lightning 1s infinite;
+    animation: lightning 8s infinite;
     pointer-events: none;
 }
 
