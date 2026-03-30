@@ -3,6 +3,15 @@ import random
 import string
 import time
 from openai import OpenAI
+
+# ------------------------
+# SOUND FILES
+# ------------------------
+THUNDER = "https://www.soundjay.com/nature/thunder-1.mp3"
+WRONG = "https://www.soundjay.com/button/beep-10.wav"
+WIN = "https://www.soundjay.com/misc/small-bell-ring-01a.mp3"
+HEARTBEAT = "https://www.soundjay.com/human/heartbeat-01a.mp3"
+
 st.markdown("""
 <style>
 
@@ -24,11 +33,6 @@ button[kind="secondary"] {
 button:hover {
     border: 1px solid #22c55e !important;
 }
-
-THUNDER = "https://www.soundjay.com/nature/thunder-1.mp3"
-WRONG = "https://www.soundjay.com/button/beep-10.wav"
-WIN = "https://www.soundjay.com/misc/small-bell-ring-01a.mp3"
-HEARTBEAT = "https://www.soundjay.com/human/heartbeat-01a.mp3"
 
 /* TITLE GLOW */
 h1 {
