@@ -4,7 +4,21 @@ import string
 import time
 from openai import OpenAI
 import random
+import json
+import os
 
+LEADERBOARD_FILE = "leaderboard.json"
+
+def load_leaderboard():
+    if not os.path.exists(LEADERBOARD_FILE):
+        return []
+    with open(LEADERBOARD_FILE, "r") as f:
+        return json.load(f)
+
+def save_leaderboard(data):
+    with open(LEADERBOARD_FILE, "w") as f:
+        json.dump(data, f)
+        
 # ------------------------
 # SOUND FUNCTION
 # ------------------------
@@ -205,7 +219,7 @@ if "init" not in st.session_state or st.session_state.get("level") != level:
 
 # leaderboard init
 if "leaderboard" not in st.session_state:
-    st.session_state.leaderboard = []
+    st.session_state.leaderboard = load_leaderboard()
 
 # ------------------------
 # TIMER (FIXED)
@@ -382,24 +396,64 @@ if idx == len(path) - 1 and not st.session_state.finished:
 
     final_time = int(time.time() - st.session_state.start_time)
 
-    st.success(f"✨ Exorcism complete in {final_time}s!")
-
-    st.session_state.final_time = final_time   # ✅ REQUIRED
-    st.session_state.leaderboard.append(final_time)
+    st.session_state.final_time = final_time
     st.session_state.finished = True
-    play_sound(WIN)
 
+    leaderboard = st.session_state.leaderboard
+
+    # check if qualifies for top 5
+    qualifies = (
+        len(leaderboard) < 5 or
+        final_time < max(entry["time"] for entry in leaderboard)
+    )
+
+    if qualifies:
+        st.session_state.new_high_score = True
+    else:
+        st.success(f"✨ Completed in {final_time}s!")
+
+if st.session_state.get("new_high_score", False):
+
+    st.success(f"🏆 New High Score! Time: {st.session_state.final_time}s")
+
+    name = st.text_input("Enter your name:")
+
+    if st.button("Submit Score"):
+
+        leaderboard = st.session_state.leaderboard
+
+        leaderboard.append({
+            "name": name if name else "Anonymous",
+            "time": st.session_state.final_time
+        })
+
+        # sort and keep top 5
+        leaderboard = sorted(leaderboard, key=lambda x: x["time"])[:5]
+
+        save_leaderboard(leaderboard)
+
+        st.session_state.leaderboard = leaderboard
+        st.session_state.new_high_score = False
+
+        st.success("Score saved!")
+        
 # ------------------------
 # LEADERBOARD
 # ------------------------
 st.subheader("🏆 Leaderboard")
 
-for i, t in enumerate(sorted(st.session_state.leaderboard)[:5]):
-    st.write(f"{i+1}. {t}s")
+for i, entry in enumerate(st.session_state.leaderboard):
+    st.write(f"{i+1}. {entry['name']} - {entry['time']}s")
 
 # ------------------------
 # RESET
 # ------------------------
 if st.button("🔄 New Game"):
+
+    leaderboard = st.session_state.leaderboard
+
     st.session_state.clear()
+
+    st.session_state.leaderboard = leaderboard
+
     st.rerun()
