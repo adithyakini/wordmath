@@ -44,26 +44,24 @@ def get_words(level):
 # ------------------------
 # PATH GENERATION
 # ------------------------
-def generate_full_path(words):
-    grid = [[random.choice(string.ascii_uppercase) for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
-
+def generate_full_path():
     path = []
     visited = set()
 
     x, y = 0, 0
-    path.append((x, y))
-    visited.add((x, y))
+    path.append((x,y))
+    visited.add((x,y))
 
-    # build path until right edge reached
+    # force path to reach right edge
     while y < GRID_SIZE - 1:
 
-        moves = [(1,0),(-1,0),(0,1)]  # bias towards right
+        moves = [(1,0),(-1,0),(0,1)]
         random.shuffle(moves)
 
         moved = False
 
         for dx, dy in moves:
-            nx, ny = x + dx, y + dy
+            nx, ny = x+dx, y+dy
 
             if 0 <= nx < GRID_SIZE and 0 <= ny < GRID_SIZE and (nx,ny) not in visited:
                 x, y = nx, ny
@@ -73,11 +71,41 @@ def generate_full_path(words):
                 break
 
         if not moved:
-            # force move right if stuck
             y += 1
             path.append((x,y))
             visited.add((x,y))
 
+    return path
+
+    def generate_words_for_path(path_length, level):
+
+    words = []
+
+    while sum(len(w) for w in words) < path_length:
+
+        new_words = get_words(level)
+
+        for w in new_words:
+            words.append(w)
+
+            if sum(len(w) for w in words) >= path_length:
+                break
+
+    return words
+
+    def embed_words_in_grid(path, words):
+    grid = [[random.choice(string.ascii_uppercase) for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+
+    i = 0
+    for word in words:
+        for ch in word:
+            if i >= len(path):
+                return grid
+            x, y = path[i]
+            grid[x][y] = ch
+            i += 1
+
+    return grid
     # ------------------------
     # EMBED WORDS INTO PATH
     # ------------------------
@@ -96,24 +124,27 @@ def generate_full_path(words):
 # ------------------------
 if "init" not in st.session_state or st.session_state.get("level") != level:
 
-    words = get_words(level)
-    grid, path = generate_full_path(words)
+    path = generate_full_path()
+
+    words = generate_words_for_path(len(path), level)
+
+    grid = embed_words_in_grid(path, words)
 
     st.session_state.grid = grid
     st.session_state.path = path
     st.session_state.words = words
     st.session_state.level = level
-
     st.session_state.entry = path[0]
     st.session_state.exit = path[-1]
-
-    st.session_state.index = -1  # wizard outside
+    st.session_state.index = -1
     st.session_state.lives = 3
     st.session_state.wrong_tiles = set()
     st.session_state.start_time = time.time()
     st.session_state.finished = False
-
+    st.session_state.current_word_index = 0
+    st.session_state.letters_progress = 0
     st.session_state.init = True
+    
     st.session_state.current_word_index = 0
     st.session_state.letters_progress = 0
 
