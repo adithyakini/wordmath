@@ -202,18 +202,17 @@ if "leaderboard" not in st.session_state:
 # CINEMATIC CHUCKY INTRO (NON-BLOCKING FIX)
 # ------------------------
 # ------------------------
-# CHUCKY INTRO (NO RERUN / NO STOP)
+# CHUCKY INTRO (RUN ONCE ONLY)
 # ------------------------
-if st.session_state.get("show_intro", False):
+if st.session_state.get("show_intro", False) and not st.session_state.get("intro_played", False):
+
+    st.session_state.intro_played = True  # ✅ lock it immediately
 
     exit_row = st.session_state.exit[0]
     x_percent = 85
     y_percent = 10 + (exit_row / GRID_SIZE) * 70
 
-    # play thunder once
-    if "intro_played" not in st.session_state:
-        play_sound(THUNDER)
-        st.session_state.intro_played = True
+    play_sound(THUNDER)
 
     st.markdown(f"""
     <style>
@@ -250,7 +249,6 @@ if st.session_state.get("show_intro", False):
 
     # ✅ disable intro AFTER first render
     st.session_state.show_intro = False
-
 # ------------------------
 # UI
 # ------------------------
