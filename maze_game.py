@@ -1,25 +1,28 @@
 import streamlit as st
 import random
 import string
+import time
 from openai import OpenAI
 
-GRID_SIZE = 6
 client = OpenAI()
 
+GRID_SIZE = 10
+
 # ------------------------
-# AI WORDS
+# AI WORDS (5 CONNECTED)
 # ------------------------
-def get_ai_words(level="easy"):
+def get_words(level):
     prompt = f"""
-    Generate 6 common English words.
+    Generate 5 common English words that can connect sequentially.
     Difficulty: {level}
-    Easy: 3-5 letters
-    Medium: 4-6 letters
-    Hard: 5-8 letters
 
-    Words should share letters if possible.
+    Rules:
+    - easy: 3-5 letters
+    - medium: 4-6 letters
+    - hard: 5-8 letters
+    - words should be simple and common
 
-    Return comma-separated only.
+    Return comma-separated.
     """
 
     try:
@@ -28,87 +31,29 @@ def get_ai_words(level="easy"):
             messages=[{"role": "user", "content": prompt}]
         )
         words = res.choices[0].message.content.upper().split(",")
-        return [w.strip() for w in words if w.strip()]
+        return [w.strip() for w in words][:5]
     except:
-        return ["CAT","DOG","SUN","MOON","STAR","FIRE"]
+        return ["CAT","DOG","SUN","MOON","STAR"]
 
 # ------------------------
-# PREFIXES
+# GRID WITH PATH
 # ------------------------
-def build_prefixes(words):
-    p = set()
-    for w in words:
-        for i in range(len(w)):
-            p.add(w[:i+1])
-    return p
-
-# ------------------------
-# PATH GENERATION (DFS)
-# ------------------------
-def generate_path():
-    path = []
-    visited = set()
-
-    def dfs(x, y):
-        path.append((x,y))
-        visited.add((x,y))
-
-        if len(path) >= GRID_SIZE * 2:
-            return True
-
-        dirs = [(1,0),(-1,0),(0,1),(0,-1)]
-        random.shuffle(dirs)
-
-        for dx, dy in dirs:
-            nx, ny = x+dx, y+dy
-            if 0 <= nx < GRID_SIZE and 0 <= ny < GRID_SIZE and (nx,ny) not in visited:
-                if dfs(nx, ny):
-                    return True
-
-        path.pop()
-        return False
-
-    dfs(0,0)
-    return path
-
-# ------------------------
-# GRID WITH EMBEDDED WORDS
-# ------------------------
-def generate_solvable_grid(words):
+def generate_grid(words):
     grid = [[random.choice(string.ascii_uppercase) for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
 
-    path = generate_path()
+    path = []
+    x, y = 0, 0
 
-    i = 0
-    for word in words:
+    directions = [(0,1),(1,0),(0,1),(1,0),(0,1)]  # zig-zag
+
+    for word, (dx,dy) in zip(words, directions):
         for ch in word:
-            if i < len(path):
-                x,y = path[i]
-                grid[x][y] = ch
-                i += 1
+            grid[x][y] = ch
+            path.append((x,y))
+            x += dx
+            y += dy
 
-    return grid
-
-# ------------------------
-# NEIGHBORS
-# ------------------------
-def neighbors(x,y):
-    dirs = [(1,0),(-1,0),(0,1),(0,-1)]
-    return [(x+dx,y+dy) for dx,dy in dirs if 0 <= x+dx < GRID_SIZE and 0 <= y+dy < GRID_SIZE]
-
-# ------------------------
-# GHOST
-# ------------------------
-def move_ghost(g, p):
-    gx, gy = g
-    px, py = p
-
-    if abs(px-gx) > abs(py-gy):
-        gx += 1 if px > gx else -1 if px < gx else 0
-    else:
-        gy += 1 if py > gy else -1 if py < gy else 0
-
-    return (gx, gy)
+    return grid, path
 
 # ------------------------
 # INIT
@@ -117,52 +62,40 @@ level = st.selectbox("Difficulty", ["easy","medium","hard"])
 
 if "init" not in st.session_state or st.session_state.get("level") != level:
 
-    words = get_ai_words(level)
-    prefixes = build_prefixes(words)
-    grid = generate_solvable_grid(words)
+    words = get_words(level)
+    grid, path = generate_grid(words)
 
-    st.session_state.words = words
-    st.session_state.prefixes = prefixes
     st.session_state.grid = grid
+    st.session_state.path = path
+    st.session_state.words = words
     st.session_state.level = level
 
-    st.session_state.player = (0,0)
-    st.session_state.ghost = (GRID_SIZE-1, GRID_SIZE-1)
+    st.session_state.player_index = 0
+    st.session_state.start_time = time.time()
+    st.session_state.finished = False
 
-    start_letter = grid[0][0]
+    if "leaderboard" not in st.session_state:
+        st.session_state.leaderboard = []
 
-    st.session_state.word = start_letter
-    st.session_state.visited = {(0,0)}
-    st.session_state.score = 0
-    st.session_state.game_over = False
     st.session_state.init = True
 
 # ------------------------
-# STATE
+# TIMER
+# ------------------------
+elapsed = int(time.time() - st.session_state.start_time)
+st.write(f"⏱️ Time: {elapsed}s")
+
+# ------------------------
+# GAME STATE
 # ------------------------
 grid = st.session_state.grid
-player = st.session_state.player
-ghost = st.session_state.ghost
-word = st.session_state.word
-visited = st.session_state.visited
+path = st.session_state.path
 words = st.session_state.words
-prefixes = st.session_state.prefixes
+player_i = st.session_state.player_index
 
-st.title("🧙 Word Maze (Solvable)")
+st.title("🧙 Word Path Maze")
 
-st.write(f"Word: **{word}**")
-st.write(f"Score: {st.session_state.score}")
-st.write(f"Words: {', '.join(words)}")
-
-# ------------------------
-# VALID MOVES
-# ------------------------
-valid_moves = []
-for nx, ny in neighbors(*player):
-    if (nx,ny) not in visited:
-        new_word = word + grid[nx][ny]
-        if new_word in prefixes:
-            valid_moves.append((nx,ny))
+st.write(f"Words to find: {' → '.join(words)}")
 
 # ------------------------
 # GRID UI
@@ -173,53 +106,53 @@ for i in range(GRID_SIZE):
 
         label = grid[i][j]
 
-        if (i,j) == player:
+        if player_i < len(path) and (i,j) == path[player_i]:
             label = "🧙"
-        elif (i,j) == ghost:
-            label = "👻"
-        elif (i,j) in valid_moves:
-            label = f"🟩{grid[i][j]}"
-
+        elif (i,j) in path[:player_i]:
+            label = "🟦"
+        
         if cols[j].button(label, key=f"{i}-{j}"):
 
-            if st.session_state.game_over:
-                st.stop()
+            if st.session_state.finished:
+                continue
 
-            if (i,j) in valid_moves:
+            # correct next step
+            if player_i < len(path) and (i,j) == path[player_i]:
+                st.session_state.player_index += 1
 
-                new_word = word + grid[i][j]
-
-                st.session_state.player = (i,j)
-                st.session_state.word = new_word
-                st.session_state.visited.add((i,j))
-
-                if new_word in words:
-                    st.success(f"✅ {new_word}")
-                    st.session_state.score += len(new_word)
-                    st.session_state.word = ""
-                    st.session_state.visited = {st.session_state.player}
-
-                st.session_state.ghost = move_ghost(ghost, st.session_state.player)
+                # mysterious sound trigger
+                st.audio("https://www.soundjay.com/button/beep-07.wav")
 
                 st.rerun()
 
             else:
-                st.warning("❌ Invalid move")
+                st.warning("❌ Wrong path")
 
 # ------------------------
-# GAME OVER
+# WIN
 # ------------------------
-if st.session_state.player == st.session_state.ghost:
-    st.error("💀 Ghost caught you")
-    st.session_state.game_over = True
+if st.session_state.player_index >= len(path) and not st.session_state.finished:
 
-if len(valid_moves) == 0:
-    st.error("🚫 No moves left")
-    st.session_state.game_over = True
+    total_time = int(time.time() - st.session_state.start_time)
+
+    st.success(f"🎉 Completed in {total_time}s")
+
+    st.session_state.leaderboard.append(total_time)
+    st.session_state.finished = True
+
+# ------------------------
+# LEADERBOARD
+# ------------------------
+st.subheader("🏆 Leaderboard")
+
+scores = sorted(st.session_state.leaderboard)
+
+for i, s in enumerate(scores[:5]):
+    st.write(f"{i+1}. {s}s")
 
 # ------------------------
 # RESET
 # ------------------------
-if st.button("🔄 Restart"):
+if st.button("🔄 New Game"):
     st.session_state.clear()
     st.rerun()
