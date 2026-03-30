@@ -25,13 +25,10 @@ button:hover {
     border: 1px solid #22c55e !important;
 }
 
-/* LIGHTNING FLASH ANIMATION */
-@keyframes lightning {
-    0% { opacity: 0; }
-    5% { opacity: 1; background: #ffffff; }
-    10% { opacity: 0; }
-    100% { opacity: 0; }
-}
+THUNDER = "https://www.soundjay.com/nature/thunder-1.mp3"
+WRONG = "https://www.soundjay.com/button/beep-10.wav"
+WIN = "https://www.soundjay.com/misc/small-bell-ring-01a.mp3"
+HEARTBEAT = "https://www.soundjay.com/human/heartbeat-01a.mp3"
 
 /* TITLE GLOW */
 h1 {
@@ -187,6 +184,10 @@ if "init" not in st.session_state or st.session_state.get("level") != level:
     st.session_state.current_word_index = 0
     st.session_state.letters_progress = 0
 
+    st.session_state.play_wrong = False
+    st.session_state.play_win = False
+    st.session_state.play_heartbeat = False                
+
 # leaderboard init
 if "leaderboard" not in st.session_state:
     st.session_state.leaderboard = []
@@ -271,6 +272,28 @@ path = st.session_state.path
 idx = st.session_state.index
 
 # ------------------------
+# SOUND PLAYER
+# ------------------------
+
+# ambient thunder (always present)
+st.audio(THUNDER, autoplay=True, loop=True)
+
+# wrong move
+if st.session_state.get("play_wrong", False):
+    st.audio(WRONG, autoplay=True)
+    st.session_state.play_wrong = False
+
+# heartbeat (low life)
+if st.session_state.get("play_heartbeat", False):
+    st.audio(HEARTBEAT, autoplay=True)
+    st.session_state.play_heartbeat = False
+
+# win sound
+if st.session_state.get("play_win", False):
+    st.audio(WIN, autoplay=True)
+    st.session_state.play_win = False
+    
+# ------------------------
 # GRID
 # ------------------------
 for i in range(GRID_SIZE):
@@ -349,6 +372,9 @@ for i in range(GRID_SIZE):
                     st.rerun()
                 else:
                     st.session_state.lives -= 1
+                    st.session_state.play_wrong = True
+                    if st.session_state.lives == 1:
+                        st.session_state.play_heartbeat = True
                     st.session_state.wrong_tiles.add((x,y))
                     st.warning("Wrong path!")
 
@@ -368,6 +394,7 @@ if idx == len(path) - 1 and not st.session_state.finished:
     st.session_state.final_time = final_time   # ✅ REQUIRED
     st.session_state.leaderboard.append(final_time)
     st.session_state.finished = True
+    st.session_state.play_win = True
 
 # ------------------------
 # LEADERBOARD
