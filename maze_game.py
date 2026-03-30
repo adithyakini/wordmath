@@ -379,7 +379,7 @@ words = st.session_state.words
 for i, w in enumerate(words):
 
     # ✅ COMPLETED words
-    if i < current_idx:
+    if i in st.session_state.completed_words:
         display.append(w)
 
     # ✅ CURRENT word (progressive reveal)
@@ -444,9 +444,16 @@ for i in range(GRID_SIZE):
         # wizard
         if idx >= 0 and idx < len(path) and (x,y) == path[idx]:
             label = "🧙"
+            # 🔥 show letter if this tile completes a word
+            total = 0
+            for w in st.session_state.words:
+                total += len(w)
+                if idx == total - 1:
+                    label = f"🧙{base}"
+                    break
 
         # correct path
-        elif idx >= 0 and (x,y) in path[:idx]:
+        elif idx > 0 and (x,y) in path[:idx]:
             label = f"🟩{base}"
 
         # wrong
