@@ -8,16 +8,12 @@ import json
 import os
 import base64
 
-if st.button("🔊 Test Sound"):
-    st.audio("chucky_laugh.mp3")
-
 def get_base64_image(path):
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode()
 
 chucky_base64 = get_base64_image("chucky.png")
 
-        
 LEADERBOARD_FILE = "leaderboard.json"
 
 def load_leaderboard():
@@ -33,13 +29,13 @@ def save_leaderboard(data):
 # ------------------------
 # SOUND FUNCTION
 # ------------------------
-def play_loop_sound_base64(path):
+def play_autoplay_sound_base64(path):
     import base64
     with open(path, "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
 
     st.markdown(f"""
-    <audio autoplay loop>
+    <audio autoplay loop id="chucky-audio">
         <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
     </audio>
     """, unsafe_allow_html=True)
@@ -546,9 +542,13 @@ for i in range(GRID_SIZE):
             label = base
 
         if cols[j].button(label, key=f"{x}-{y}"):
-            st.session_state.user_interacted = True
-            if st.session_state.finished:
-                continue
+            # 👇 FIRST USER INTERACTION
+            if not st.session_state.get("user_interacted", False):
+                st.session_state.user_interacted = True
+        
+                # 🔊 inject autoplay HERE (same interaction frame)
+                play_autoplay_sound_base64("chucky_laugh.mp3")
+                st.session_state.chucky_sound_played = True
 
             current_index = st.session_state.index
 
