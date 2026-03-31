@@ -382,16 +382,27 @@ st.title("🧙 Om Bhool Bhulaiya Swaahaa")
 # ------------------------
 if st.session_state.get("chucky_active", False):
 
-    # 🔊 play sound once
-    if not st.session_state.get("chucky_sound_played", False):
-        if (st.session_state.get("chucky_active", False)
-            and st.session_state.get("user_interacted", False)
-            and not st.session_state.get("chucky_sound_played", False)
-           ):
-            #play_loop_sound_base64("chucky_laugh.mp3")
-            #st.session_state.chucky_sound_played = True
-            
     exit_row = st.session_state.exit[0]
+
+    # map row → vertical position
+    y_percent = 10 + (exit_row / GRID_SIZE) * 70
+
+    st.markdown(f"""
+    <style>
+    .chucky-exit {{
+        position: fixed;
+        top: {y_percent}vh;
+        left: 92vw;
+        transform: translate(-50%, -50%);
+        z-index: 999;
+        pointer-events: none;
+    }}
+    </style>
+
+    <div class="chucky-exit">
+        <img src="data:image/png;base64,{chucky_base64}">
+    </div>
+    """, unsafe_allow_html=True)
 
     # map row → vertical position
     y_percent = 10 + (exit_row / GRID_SIZE) * 70
