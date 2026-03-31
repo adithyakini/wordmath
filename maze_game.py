@@ -8,6 +8,8 @@ import json
 import os
 import base64
 
+if st.button("🔊 Test Sound"):
+    st.audio("chucky_laugh.mp3")
 
 def get_base64_image(path):
     with open(path, "rb") as f:
