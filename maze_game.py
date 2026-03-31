@@ -243,9 +243,7 @@ else:
 # ------------------------
 # UI
 # ------------------------
-# ------------------------
-# CINEMATIC CHUCKY INTRO (FIXED FLOW)
-# ------------------------
+
 if st.session_state.get("show_intro", False):
 
     exit_row = st.session_state.exit[0]
@@ -377,52 +375,61 @@ with st.sidebar:
     """)
     
 st.title("🧙 Om Bhool Bhulaiya Swaahaa")
+# ------------------------
+# CHUCKY NEAR EXIT (FIXED POSITION)
+# ------------------------
 if st.session_state.get("chucky_active", False):
 
-    # 🔊 play sound only once
+    # 🔊 play sound once
     if not st.session_state.get("chucky_sound_played", False):
         play_loop_sound_base64("chucky_laugh.mp3")
         st.session_state.chucky_sound_played = True
 
+    exit_row = st.session_state.exit[0]
+
+    # map row → vertical position
+    y_percent = 10 + (exit_row / GRID_SIZE) * 70
+
     st.markdown(f"""
     <style>
 
-    .floating-chucky {{
+    .chucky-exit {{
         position: fixed;
-        top: 20%;
-        left: 70%;
+        top: {y_percent}vh;
+        left: 92vw;   /* right side near exit gate */
+        transform: translate(-50%, -50%);
         z-index: 999;
         pointer-events: none;
-        animation: floatMove 6s infinite ease-in-out,
-                   pulseSize 2s infinite ease-in-out;
+
+        animation: pulseSize 2s infinite ease-in-out,
+                   floatY 3s infinite ease-in-out;
     }}
 
-    .floating-chucky img {{
-        width: 120px;
+    .chucky-exit img {{
+        width: 100px;
     }}
 
-    /* FLOATING MOTION */
-    @keyframes floatMove {{
-        0% {{ transform: translate(0px, 0px); }}
-        25% {{ transform: translate(-40px, 30px); }}
-        50% {{ transform: translate(20px, 60px); }}
-        75% {{ transform: translate(-20px, 20px); }}
-        100% {{ transform: translate(0px, 0px); }}
-    }}
-
-    /* SIZE PULSE */
+    /* SMALL ↔ BIG */
     @keyframes pulseSize {{
-        0% {{ transform: scale(1); }}
-        50% {{ transform: scale(1.5); }}
-        100% {{ transform: scale(1); }}
+        0% {{ transform: translate(-50%, -50%) scale(1); }}
+        50% {{ transform: translate(-50%, -50%) scale(1.6); }}
+        100% {{ transform: translate(-50%, -50%) scale(1); }}
+    }}
+
+    /* slight vertical float */
+    @keyframes floatY {{
+        0% {{ top: {y_percent}vh; }}
+        50% {{ top: {y_percent + 3}vh; }}
+        100% {{ top: {y_percent}vh; }}
     }}
 
     </style>
 
-    <div class="floating-chucky">
+    <div class="chucky-exit">
         <img src="data:image/png;base64,{chucky_base64}">
     </div>
     """, unsafe_allow_html=True)
+    
 st.write(f"⏱️ Time: {elapsed}s | ❤️ Lives: {st.session_state.lives}")
 current_idx = min(st.session_state.current_word_index, len(st.session_state.words) - 1)
 words = st.session_state.words
