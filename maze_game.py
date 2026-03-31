@@ -253,8 +253,6 @@ if st.session_state.get("show_intro", False):
     x_percent = 85
     y_percent = 10 + (exit_row / GRID_SIZE) * 70
 
-    play_sound(THUNDER)
-
     st.markdown(f"""
     <style>
 
@@ -567,10 +565,6 @@ for i in range(GRID_SIZE):
                 
                     st.rerun()
                 else:
-                    st.session_state.lives -= 1
-                    play_sound(WRONG)
-                    if st.session_state.lives == 1:
-                        play_sound(HEARTBEAT)
                     st.session_state.wrong_tiles.add((x,y))
                     st.warning("Wrong path!")
 
