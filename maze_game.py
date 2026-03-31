@@ -389,8 +389,8 @@ if st.session_state.get("chucky_active", False):
             and st.session_state.get("user_interacted", False)
             and not st.session_state.get("chucky_sound_played", False)
         ):
-            play_loop_sound_base64("chucky_laugh.mp3")
-            st.session_state.chucky_sound_played = True
+      #play_loop_sound_base64("chucky_laugh.mp3")
+            #st.session_state.chucky_sound_played = True
             
     exit_row = st.session_state.exit[0]
 
